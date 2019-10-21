@@ -1,0 +1,46 @@
+{
+  "name": "yaso",
+  "version": "0.0.1",
+  "description": "Lightweight opinionated Postgres SQL ORM",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "babel src --ignore \"src/**/.git*\" --extensions \".ts\" --out-dir lib --source-maps",
+    "build:watch": "babel src --watch --ignore \"src/**/.git*\" --extensions \"..ts\" --out-dir app --source-maps",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mindiply/yaso.git"
+  },
+  "keywords": [
+    "orm",
+    "sql",
+    "postgresql",
+    "node"
+  ],
+  "author": "Paolo Bongiovanni <paolo.bongiovanni@midiply.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/mindiply/yaso/issues"
+  },
+  "homepage": "https://github.com/mindiply/yaso#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.6.4",
+    "@babel/core": "^7.6.4",
+    "@babel/plugin-proposal-class-properties": "^7.5.5",
+    "@babel/plugin-proposal-object-rest-spread": "^7.6.2",
+    "@babel/preset-env": "^7.6.3",
+    "@babel/preset-typescript": "^7.6.0",
+    "@types/jest": "^24.0.19",
+    "@typescript-eslint/eslint-plugin": "^2.4.0",
+    "@typescript-eslint/parser": "^2.4.0",
+    "eslint": "^6.5.1",
+    "jest": "^24.9.0",
+    "prettier": "^1.18.2",
+    "ts-jest": "^24.1.0",
+    "typescript": "^3.6.4"
+  },
+  "dependencies": {
+    "indent-string": "^4.0.0"
+  }
+}
