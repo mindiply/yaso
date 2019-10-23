@@ -13,8 +13,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Ability to work with sql statements as sql expressions in join and wheres
 - Refactor SQL dialect specific code to be in unique place and
 easy to adapt for other dialects
+- Overload insert and update queries so that the dictionary of
+changes returns both the sql and an array or dictionary of values
+to be passed onto the preferred db connection library
 
-## [0.0.3] - TBA
+## [0.0.4] - TBA
+
+### Fixes
+- Added boolean as accepted SQL value
+
+## [0.0.3] - 2019-10-23
 
 ### Added
 - Added option to return fields from insert and update queries.

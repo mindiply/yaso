@@ -86,6 +86,7 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
     if (
       typeof this.value === 'number' ||
       typeof this.value === 'string' ||
+      typeof this.value === 'boolean' ||
       this.value instanceof Date ||
       typeof this.value === 'function' ||
       this.value instanceof FieldReference
@@ -112,6 +113,9 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
     if (typeof value === 'function') {
       return (value as IFieldReferenceFn)().toSql();
     }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
     return `'${String(value)}'`;
   };
 }
@@ -134,6 +138,7 @@ export const transformFieldUpdatesToSql = <T>(
 export type DataValue =
   | string
   | number
+  | boolean
   | Date
   | IFieldReferenceFn
   | INamedParameter;
