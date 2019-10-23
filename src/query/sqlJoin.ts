@@ -1,21 +1,21 @@
-import { IFieldReferenceFn } from "./sqlFieldReference";
-import indentString from "indent-string";
+import {IFieldReferenceFn} from './sqlFieldReference';
+import indentString from 'indent-string';
 
 export enum JoinType {
-  inner = "inner",
-  leftOuter = "leftOuter",
-  rightOuter = "rightOuter"
+  inner = 'inner',
+  leftOuter = 'leftOuter',
+  rightOuter = 'rightOuter'
 }
 
 const sqlJoinByType = (joinType: JoinType): string => {
   if (joinType === JoinType.inner) {
-    return "join";
+    return 'join';
   }
   if (joinType === JoinType.leftOuter) {
-    return "left outer join";
+    return 'left outer join';
   }
   if (joinType === JoinType.rightOuter) {
-    return "right outer join";
+    return 'right outer join';
   }
   throw new Error(`Unexpected join type: ${joinType}`);
 };
@@ -43,9 +43,9 @@ export class Join implements IJoin {
     p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) {
-    if (typeof p1 === "function") {
+    if (typeof p1 === 'function') {
       this.from = p1;
-      if (typeof p2 === "function") {
+      if (typeof p2 === 'function') {
         this.to = p2;
         this.type = (p3 as JoinType) || JoinType.inner;
       } else {
@@ -56,7 +56,7 @@ export class Join implements IJoin {
     } else {
       this.from = p1;
       this.onFrom = p2 as IFieldReferenceFn;
-      if (typeof p3 === "function") {
+      if (typeof p3 === 'function') {
         this.to = p3 as IFieldReferenceFn;
         this.type = (p4 as JoinType) || JoinType.inner;
       } else {
@@ -68,8 +68,8 @@ export class Join implements IJoin {
   }
 
   public toSql = (nSpaces = 0): string => {
-    if (typeof this.from === "function") {
-      if (typeof this.to === "function") {
+    if (typeof this.from === 'function') {
+      if (typeof this.to === 'function') {
         const fromRef = (this.from as IFieldReferenceFn)();
         const from = fromRef.qryTbl.toSql();
         const fromFld = fromRef.toReferenceSql();
@@ -95,7 +95,7 @@ ${from} ${sqlJoinByType(this.type)} (
         );
       }
     } else {
-      if (typeof this.to === "function") {
+      if (typeof this.to === 'function') {
         const fromJoin = (this.from as IJoin).toSql(nSpaces + 4);
         const fromRef = (this.onFrom as IFieldReferenceFn)();
         const fromFld = fromRef.toReferenceSql();
@@ -161,8 +161,8 @@ export function join(
   p4?: JoinType | IFieldReferenceFn,
   p5?: JoinType
 ): IJoin {
-  if (typeof p1 === "function") {
-    if (typeof p2 === "function") {
+  if (typeof p1 === 'function') {
+    if (typeof p2 === 'function') {
       return new Join(p1, p2 as IFieldReferenceFn, p3 as JoinType);
     } else {
       return new Join(
@@ -173,7 +173,7 @@ export function join(
       );
     }
   } else {
-    if (typeof p2 === "function") {
+    if (typeof p2 === 'function') {
       return new Join(
         p1,
         p2 as IFieldReferenceFn,

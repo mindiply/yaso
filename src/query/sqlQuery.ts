@@ -6,7 +6,7 @@ import {
 } from './sqlFieldReference';
 import indentString from 'indent-string';
 import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
-import {ReferencedTable} from './sqlTableQuery';
+import {ReferencedTable, tbl} from './sqlTableQuery';
 import {ISQLExpression} from './SQLExpression';
 import {countNLines} from './utils';
 
@@ -16,7 +16,7 @@ export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
 }
 
 export const createFieldReferenceFn = <T>(
-  qryTbl: ReferencedSelectTable<T> | ReferencedTable<T>,
+  qryTbl: ReferencedTable<T>,
   field: DBField,
   alias?: string
 ): IFieldReferenceFn<T> => {
@@ -34,51 +34,7 @@ export const createFieldReferenceFn = <T>(
 
 export type ToStringFn = () => string;
 
-class SelectTable<T = any> {
-  [fieldname: string]:
-    | IFieldReferenceFn
-    | DBTable
-    | string
-    | ToStringFn
-    | undefined;
-  public readonly tbl: DBTable<T>;
-  public readonly alias?: string;
-
-  constructor(tbl: DBTable<T>, alias?: string) {
-    this.tbl = tbl;
-    if (alias) {
-      this.alias = alias;
-    }
-    this.tbl.fields.forEach(field => {
-      this[field.name] = createFieldReferenceFn(
-        this as ReferencedSelectTable<T>,
-        field
-      );
-    });
-  }
-
-  public toSql = (): string =>
-    `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ''}`;
-
-  public toReferenceSql = (): string => this.alias || this.tbl.dbName;
-}
-
-interface ISelectTable<T> extends SelectTable<T> {}
-
-export type ReferencedSelectTable<T> = ISelectTable<T> &
-  {
-    [P in keyof T]: IFieldReferenceFn<T[P]>;
-  };
-
-export function tbl<T>(
-  dbTable: DBTable<T>,
-  alias?: string
-): ReferencedSelectTable<T> {
-  const tbl = new SelectTable(dbTable, alias);
-  return tbl as ReferencedSelectTable<T>;
-}
-
-type SelectQryTablePrm<T> = DBTable<T> | ReferencedSelectTable<T>;
+type SelectQryTablePrm<T> = DBTable<T> | ReferencedTable<T>;
 export interface IQryCallback {
   <T>(qry: SelectQry, t1: T): void;
   <T1, T2>(qry: SelectQry, t1: T1, t2: T2): void;
@@ -95,7 +51,7 @@ export interface IQryCallback {
 }
 
 export class SelectQry {
-  protected from: ReferencedSelectTable<any>[];
+  protected from: ReferencedTable<any>[];
   protected selectFields?: IFieldReference[];
   protected rootWhere?: ISQLExpression;
   protected joins?: Join;
@@ -105,7 +61,7 @@ export class SelectQry {
       throw new Error('Expected at least one table');
     }
     this.from = (Array.isArray(tables) ? tables : [tables]).map(table =>
-      table instanceof SelectTable ? table : tbl(table)
+      table instanceof DBTable ? tbl(table) : table
     );
 
     const aliases: Set<string> = new Set();
@@ -118,6 +74,7 @@ export class SelectQry {
   }
 
   public executeCallback = (cb: IQryCallback): void =>
+    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
     cb(this, ...this.from);
 
@@ -136,6 +93,7 @@ export class SelectQry {
     p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ): SelectQry => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
     this.joins = joinFn(p1, p2!, p3!, p4, p5);
     return this;
@@ -200,18 +158,18 @@ where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
 
 export function selectFrom<T>(
   from: SelectQryTablePrm<T>,
-  cb?: (qry: SelectQry, t1: ReferencedSelectTable<T>) => void
+  cb?: (qry: SelectQry, t1: ReferencedTable<T>) => void
 ): SelectQry;
 export function selectFrom<T>(
   from: [SelectQryTablePrm<T>],
-  cb?: (qry: SelectQry, t1: ReferencedSelectTable<T>) => void
+  cb?: (qry: SelectQry, t1: ReferencedTable<T>) => void
 ): SelectQry;
 export function selectFrom<T1, T2>(
   from: [SelectQryTablePrm<T1>, SelectQryTablePrm<T2>],
   cb?: (
     qry: SelectQry,
-    t1: ReferencedSelectTable<T1>,
-    t2: ReferencedSelectTable<T2>
+    t1: ReferencedTable<T1>,
+    t2: ReferencedTable<T2>
   ) => void
 ): SelectQry;
 export function selectFrom(

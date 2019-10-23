@@ -1,12 +1,17 @@
-import {usePg} from '../src/pgSQL';
-import {ITableDefinition} from '../src/dbTypes';
-import {createDBTbl, DBTable} from '../src/dbModel';
 import {
-  createReferencedTable,
-  createTableQuery, insertQuerySql, ReferencedTable,
-  updateQuerySql
-} from '../src/query/sqlTableQuery'
-import {and, equals, moreThan, prm, prmToSql} from '../src/query/SQLExpression'
+  ITableDefinition,
+  DBTable,
+  tbl,
+  insertQuerySql,
+  and,
+  equals,
+  moreThan,
+  prm,
+  usePg,
+  or,
+  isNull
+} from '../src';
+import {tableSelectSql} from '../src/query/sqlTableQuery';
 
 usePg();
 
@@ -49,7 +54,7 @@ describe('Testing table update queries', () => {
     ]
   };
   const tstDbTbl = new DBTable(tblDef);
-  const qryTbl = createTableQuery(tstDbTbl);
+  const qryTbl = tbl(tstDbTbl);
   test('Basic update', () => {
     const sql = qryTbl.updateQrySql(
       {name: prm('newName')},
@@ -119,4 +124,73 @@ describe('Testing insert queries', () => {
     const sql = insertQuerySql(nupTbl, {id: 10, description: 'Paolo'});
     expect(sql).toBe(expectedSql);
   });
-})
+});
+
+describe('Test table select queries', () => {
+  interface ITest {
+    id: string;
+    name: string;
+    when: Date;
+    cc: number;
+  }
+  const tstDef: ITableDefinition<ITest> = {
+    name: 'Test',
+    dbName: 'tst',
+    fields: [
+      {
+        name: 'id',
+        dbName: 'tst_id'
+      },
+      {
+        name: 'name',
+        dbName: 'tst_name'
+      },
+      {
+        name: 'when',
+        dbName: 'tst_created_at',
+        isInsertTimestamp: true
+      },
+      {
+        name: 'cc',
+        dbName: 'tst_change_count',
+        isCC: true
+      }
+    ]
+  };
+  const qryTbl = tbl(tstDef);
+  test('Simple single field, no condition query', () => {
+    const expectedSql = `select tst.tst_id as "id"
+from tst`;
+    const sql = tableSelectSql(qryTbl, {fields: ['id']});
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Two fields, one simple condition', () => {
+    const expectedSql = `select
+  tst.tst_name as "name",
+  tst.tst_created_at as "when"
+from tst
+where tst.tst_id = 'idtest'`;
+    const sql = tableSelectSql(qryTbl, tst => ({
+      fields: ['name', 'when'],
+      where: equals(tst.id, 'idtest')
+    }));
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('All fields, multiple conditions', () => {
+    const expectedSql = `select
+  tst.tst_change_count as "cc",
+  tst.tst_id as "id",
+  tst.tst_name as "name",
+  tst.tst_created_at as "when"
+from tst
+where
+  tst.tst_id = $[id]
+  or tst.tst_id is null`;
+    const sql = tableSelectSql(qryTbl, tst => ({
+      where: or([equals(tst.id, prm('id')), isNull(tst.id)])
+    }));
+    expect(sql).toBe(expectedSql);
+  });
+});

@@ -32,7 +32,7 @@ You create table definitions
       }
       const tstTbl = new DBTable<ITst>(tblDef);
 
-and later on user them to create queries
+and later on use them to create queries
 
     const sql = selectFrom(
         tstTbl,

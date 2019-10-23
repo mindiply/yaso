@@ -1,59 +1,28 @@
-import {FieldReference, IFieldReferenceFn} from './sqlFieldReference'
-import {parenthesizeSql} from './utils'
-import {TableFieldUpdates} from './sqlTableQuery'
+import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
+import {parenthesizeSql} from './utils';
+import {TableFieldUpdates} from './sqlTableQuery';
 
 export interface ISQLExpression {
   toSql: () => string;
   isSimpleValue: () => boolean;
 }
 
-type SQLTableFieldUpdates<T> = {
-  [P in keyof T]?: ISQLExpression;
-};
-
-export const transformFieldUpdatesToSql = <T>(
-  changes: TableFieldUpdates<T>
-): SQLTableFieldUpdates<T> => {
-  const sqlChanges: SQLTableFieldUpdates<T> = {};
-  Object.entries(changes).forEach(([fieldName, fieldValue]) => {
-    sqlChanges[fieldName as keyof T] =
-      fieldValue instanceof BaseSqlExpression
-        ? fieldValue
-        : fieldValue === undefined
-        ? undefined
-        : new SQLValue(fieldValue as DataValue);
-  });
-  return sqlChanges;
-};
-
-export abstract class BaseSqlExpression implements ISQLExpression {
-  isSimpleValue: () => boolean = () => false;
-  toSql = () => '';
-}
-
 export interface INamedParameter extends ISQLExpression {
   parameterName: string;
 }
 
-export type DataValue =
-  | string
-  | number
-  | Date
-  | IFieldReferenceFn
-  | INamedParameter;
+type SQLTableFieldUpdates<T> = {
+  [P in keyof T]?: ISQLExpression;
+};
 
-export function prm(name: string): NamedParameter {
-  return new NamedParameter(name)
-}
-
-let _prm: (name: string) => string = name => name
-
+let _prm: (name: string) => string = name => name;
 export function prmToSql(name: string) {
-  return _prm(name)
+  return _prm(name);
 }
 
-export function setPrmFunction(prmFn: (name: string) => string) {
-  _prm = prmFn
+export abstract class BaseSqlExpression implements ISQLExpression {
+  isSimpleValue: () => boolean = () => false;
+  toSql = () => '';
 }
 
 export class NamedParameter extends BaseSqlExpression
@@ -68,14 +37,6 @@ export class NamedParameter extends BaseSqlExpression
   public isSimpleValue = () => true;
 
   public toSql = () => prmToSql(this.parameterName);
-}
-
-enum MathBinaryOperator {
-  add = '+',
-  subtract = '-',
-  multiply = '*',
-  divide = '/',
-  modulo = '%'
 }
 
 export class SQLValue extends BaseSqlExpression implements ISQLExpression {
@@ -119,7 +80,43 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
   };
 }
 
-export type SQLExpressionOperand = DataValue;
+export const transformFieldUpdatesToSql = <T>(
+  changes: TableFieldUpdates<T>
+): SQLTableFieldUpdates<T> => {
+  const sqlChanges: SQLTableFieldUpdates<T> = {};
+  Object.entries(changes).forEach(([fieldName, fieldValue]) => {
+    sqlChanges[fieldName as keyof T] =
+      fieldValue instanceof BaseSqlExpression
+        ? fieldValue
+        : fieldValue === undefined
+        ? undefined
+        : new SQLValue(fieldValue as DataValue);
+  });
+  return sqlChanges;
+};
+
+export type DataValue =
+  | string
+  | number
+  | Date
+  | IFieldReferenceFn
+  | INamedParameter;
+
+export function prm(name: string): NamedParameter {
+  return new NamedParameter(name);
+}
+
+export function setPrmFunction(prmFn: (name: string) => string) {
+  _prm = prmFn;
+}
+
+enum MathBinaryOperator {
+  add = '+',
+  subtract = '-',
+  multiply = '*',
+  divide = '/',
+  modulo = '%'
+}
 
 export interface ISQLMathExpression extends ISQLExpression {
   left: ISQLExpression;
@@ -236,9 +233,15 @@ class IsNullWhereCond extends BaseSqlExpression implements IWhereNullCond {
   public operand: ISQLExpression;
   public type: NullComparatorType;
 
-  constructor(operand: ISQLExpression, type = NullComparatorType.isNull) {
+  constructor(
+    operand: ISQLExpression | DataValue,
+    type = NullComparatorType.isNull
+  ) {
     super();
-    this.operand = operand;
+    this.operand =
+      operand instanceof BaseSqlExpression
+        ? operand
+        : new SQLValue(operand as DataValue);
     this.type = type;
   }
 
@@ -253,11 +256,11 @@ class IsNullWhereCond extends BaseSqlExpression implements IWhereNullCond {
   };
 }
 
-export function isNull(field: ISQLExpression) {
+export function isNull(field: ISQLExpression | DataValue) {
   return new IsNullWhereCond(field, NullComparatorType.isNull);
 }
 
-export function isNotNull(field: ISQLExpression) {
+export function isNotNull(field: ISQLExpression | DataValue) {
   return new IsNullWhereCond(field, NullComparatorType.isNotNull);
 }
 
@@ -341,7 +344,7 @@ export class LogicalOperatorCond extends BaseSqlExpression
     }
   }
 
-  public toSql = (nSpaces = 0) => {
+  public toSql = () => {
     if (this.operator === LogicalOperator.NOT) {
       const operandSql = this.operands[0].toSql();
       return `not ${parenthesizeSql(operandSql)}`;

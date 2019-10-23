@@ -3,11 +3,14 @@ import {
   ITableDefinition,
   ITableField,
   ITableFieldDefinition
-} from "./dbTypes";
+} from './dbTypes';
 
 const ccRE = /_cc$/i;
 const createdAtRE = /_created_at$/i;
 const updatedAtRE = /_cc$/i;
+
+const tableRegistryByName: Map<string, DBTable<any>> = new Map();
+const tableRegistryByDbName: Map<string, DBTable<any>> = new Map();
 
 export class DBField implements ITableField {
   public readonly name: string;
@@ -55,17 +58,21 @@ export class DBTable<DataType = any> implements ITable<DataType> {
       this.fieldsByName.set(dbField.name, dbField);
       this.fieldsByDBName.set(dbField.dbName, dbField);
     });
-    const ccIndex = this.fields.findIndex(field => field.isCC)
+    const ccIndex = this.fields.findIndex(field => field.isCC);
     this.hasCC = ccIndex !== -1;
     if (this.hasCC) {
       this.ccField = this.fields[ccIndex];
     }
-    const insertTimestampIndex = this.fields.findIndex(field => field.isInsertTimestamp);
+    const insertTimestampIndex = this.fields.findIndex(
+      field => field.isInsertTimestamp
+    );
     this.hasInsertTimestamp = insertTimestampIndex !== -1;
     if (this.hasInsertTimestamp) {
       this.insertTimestampField = this.fields[insertTimestampIndex];
     }
-    const updateTimestampIndex = this.fields.findIndex(field => field.isUpdateTimestamp);
+    const updateTimestampIndex = this.fields.findIndex(
+      field => field.isUpdateTimestamp
+    );
     this.hasUpdateTimestamp = updateTimestampIndex !== -1;
     if (this.hasUpdateTimestamp) {
       this.updateTimestampField = this.fields[updateTimestampIndex];
@@ -89,15 +96,12 @@ export class DBTable<DataType = any> implements ITable<DataType> {
 
 export const createDBTbl = <T>(tblDef: ITableDefinition<T>): DBTable<T> => {
   return new DBTable<T>(tblDef);
-}
-
-const tableRegistryByName: Map<string, DBTable<any>> = new Map();
-const tableRegistryByDbName: Map<string, DBTable<any>> = new Map();
+};
 
 export function getDbTableByName<T>(tableName: string): DBTable<T> {
   const tbl = tableRegistryByName.get(tableName);
   if (!tbl) {
-    throw new Error("Table not in registry");
+    throw new Error('Table not in registry');
   }
   return tbl;
 }
@@ -105,7 +109,7 @@ export function getDbTableByName<T>(tableName: string): DBTable<T> {
 export function getDbTableByDbName<T>(tableDbName: string): DBTable<T> {
   const tbl = tableRegistryByDbName.get(tableDbName);
   if (!tbl) {
-    throw new Error("Table not in registry");
+    throw new Error('Table not in registry');
   }
   return tbl;
 }

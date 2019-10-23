@@ -1,8 +1,15 @@
-import {usePg} from '../src/pgSQL';
-import {tbl, selectFrom} from '../src/query/sqlQuery';
-import {ITableDefinition} from '../src/dbTypes';
-import {DBTable} from '../src/dbModel';
-import {and, equals, moreThan, or, prm} from '../src/query/SQLExpression';
+import {
+  selectFrom,
+  ITableDefinition,
+  DBTable,
+  and,
+  equals,
+  moreThan,
+  or,
+  prm,
+  tbl,
+  usePg
+} from '../src';
 
 usePg();
 

@@ -1,14 +1,14 @@
 import indentString from 'indent-string';
 import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
-import {DBTable} from '../dbModel';
+import {createDBTbl, DBTable} from '../dbModel';
 import {createFieldReferenceFn, ToStringFn} from './sqlQuery';
 import {countNLines, parenthesizeSql} from './utils';
 import {
-  add,
   DataValue,
   ISQLExpression,
   transformFieldUpdatesToSql
 } from './SQLExpression';
+import {ITableDefinition} from '../dbTypes';
 
 export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
@@ -33,6 +33,11 @@ type UpdateFn<T> = (
 
 export type ITableQueryCallback = <T>(tblQry: ITableQuery<T>) => void;
 
+interface ITableSelectQryParameters<T> {
+  fields?: Array<keyof T>;
+  where?: ISQLExpression;
+}
+
 class ReferencedTableImpl<T = any> implements ITableQuery<T> {
   [fieldname: string]:
     | IFieldReferenceFn
@@ -40,12 +45,18 @@ class ReferencedTableImpl<T = any> implements ITableQuery<T> {
     | ToStringFn
     | UpdateFn<T>
     | typeof ReferencedTableImpl.prototype.mapUpdateEntryToSql
-    | typeof ReferencedTableImpl.prototype.addUpdateFieldsIfNeeded;
+    | typeof ReferencedTableImpl.prototype.addUpdateFieldsIfNeeded
+    | string
+    | undefined;
 
   public readonly tbl: DBTable<T>;
+  public readonly alias?: string;
 
-  constructor(tbl: DBTable<T>) {
+  constructor(tbl: DBTable<T>, alias?: string) {
     this.tbl = tbl;
+    if (alias) {
+      this.alias = alias;
+    }
     this.tbl.fields.forEach(field => {
       this[field.name] = createFieldReferenceFn(
         this as ReferencedTable<T>,
@@ -54,9 +65,9 @@ class ReferencedTableImpl<T = any> implements ITableQuery<T> {
     });
   }
 
-  public toSql = (): string => this.tbl.dbName;
-
-  public toReferenceSql = (): string => this.tbl.dbName;
+  public toSql = (): string =>
+    `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ''}`;
+  public toReferenceSql = (): string => this.alias || this.tbl.dbName;
 
   public updateQrySql = (
     inputChanges: TableFieldUpdates<T>,
@@ -107,8 +118,10 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
       .join(',\n');
 
     const valueList = changeFields
-      .map(([_, value]) =>
-        value.isSimpleValue() ? value.toSql() : parenthesizeSql(value.toSql())
+      .map(nameValue =>
+        nameValue[1].isSimpleValue()
+          ? nameValue[1].toSql()
+          : parenthesizeSql(nameValue[1].toSql())
       )
       .join(',\n');
     return `insert into ${this.tbl.dbName} (${
@@ -120,7 +133,43 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
     }${changeFields.length > 1 ? '\n' : ''})`;
   };
 
-  public selectQrySql = () => '';
+  public selectQrySql = (prms: ITableSelectQryParameters<T> = {}): string => {
+    const {fields, where} = prms;
+    const selectFields = fields
+      ? fields.map(fieldName =>
+          (this[fieldName as string] as IFieldReferenceFn)()
+        )
+      : this.tbl.fields.map(field =>
+          (this[field.name as string] as IFieldReferenceFn)()
+        );
+    selectFields.sort((a, b) => {
+      if (a.field.name < b.field.name) {
+        return -1;
+      }
+      if (a.field.name == b.field.name) {
+        return 0;
+      }
+      return 1;
+    });
+    const fieldsSql = selectFields
+      .map(field => field.toSelectSql())
+      .join(',\n');
+    const nFieldsLineCount = countNLines(fieldsSql);
+    const whereSql = where ? where.toSql() : '';
+    const whereLineCount = countNLines(whereSql);
+    return `select${nFieldsLineCount > 1 ? '\n' : ''}${indentString(
+      fieldsSql,
+      nFieldsLineCount > 1 ? 2 : 1
+    )}
+from ${this.toSql()}${
+      whereSql
+        ? '\nwhere' +
+          (whereLineCount > 1
+            ? '\n' + indentString(whereSql, 2)
+            : ' ' + whereSql)
+        : ''
+    }`;
+  };
 
   protected addUpdateFieldsIfNeeded = (
     fieldChanges: TableFieldUpdates<T>,
@@ -164,7 +213,7 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
   };
 }
 
-interface IReferencedTable<T> extends ReferencedTableImpl<T> {}
+type IReferencedTable<T> = ReferencedTableImpl<T>;
 
 export type ReferencedTable<T> = IReferencedTable<T> &
   {
@@ -172,16 +221,11 @@ export type ReferencedTable<T> = IReferencedTable<T> &
   };
 
 export function createReferencedTable<T>(
-  dbTable: DBTable<T>
+  dbTable: DBTable<T>,
+  alias?: string
 ): ReferencedTable<T> {
-  return new ReferencedTableImpl(dbTable) as ReferencedTable<T>;
+  return new ReferencedTableImpl(dbTable, alias) as ReferencedTable<T>;
 }
-
-export const createTableQuery = <T>(
-  dbTable: DBTable<T>
-): ReferencedTable<T> => {
-  return new ReferencedTableImpl(dbTable) as ReferencedTable<T>;
-};
 
 export const updateQuerySql = <T>(
   dbTable: DBTable<T>,
@@ -196,11 +240,11 @@ type IGenerateChangesCallbackFn<T> = (
   qryTable: ReferencedTable<T>
 ) => TableFieldUpdates<T>;
 
-interface IInsertQuerySql {
+interface ITableUpdatedQrySql {
   <T>(dbTable: DBTable<T>, changes: TableFieldUpdates<T>): string;
   <T>(dbTable: DBTable<T>, cb: IGenerateChangesCallbackFn<T>): string;
 }
-export const insertQuerySql: IInsertQuerySql = <T>(
+export const insertQuerySql: ITableUpdatedQrySql = <T>(
   dbTable: DBTable<T>,
   changesOrCb: TableFieldUpdates<T> | IGenerateChangesCallbackFn<T>
 ): string => {
@@ -209,3 +253,37 @@ export const insertQuerySql: IInsertQuerySql = <T>(
     typeof changesOrCb === 'object' ? changesOrCb : changesOrCb(tblQuery);
   return tblQuery.insertQrySql(changes);
 };
+
+type IGenerateParamtersCallbackFn<T> = (
+  qryTable: ReferencedTable<T>
+) => ITableSelectQryParameters<T>;
+
+interface ITableSelectQrySql {
+  <T>(dbTable: DBTable<T>, props: ITableSelectQryParameters<T>): string;
+  <T>(dbTable: DBTable<T>, cb: IGenerateParamtersCallbackFn<T>): string;
+  <T>(dbTable: ReferencedTable<T>, props: ITableSelectQryParameters<T>): string;
+  <T>(dbTable: ReferencedTable<T>, cb: IGenerateParamtersCallbackFn<T>): string;
+}
+export const tableSelectSql: ITableSelectQrySql = <T>(
+  dbTable: DBTable<T> | ReferencedTable<T>,
+  propsOrCb: ITableSelectQryParameters<T> | IGenerateParamtersCallbackFn<T> = {}
+): string => {
+  const tblQuery: ReferencedTable<T> =
+    dbTable instanceof DBTable ? createReferencedTable(dbTable) : dbTable;
+  const props =
+    typeof propsOrCb === 'function' ? propsOrCb(tblQuery) : propsOrCb;
+  return tblQuery.selectQrySql(props);
+};
+
+export function tbl<T>(
+  tblOrDef: DBTable<T> | ITableDefinition<T>,
+  alias?: string
+): ReferencedTable<T> {
+  const tbl = createReferencedTable(
+    tblOrDef instanceof DBTable
+      ? tblOrDef
+      : createDBTbl(tblOrDef as ITableDefinition<T>),
+    alias
+  );
+  return tbl as ReferencedTable<T>;
+}

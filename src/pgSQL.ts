@@ -1,11 +1,6 @@
-import { FieldReference } from "./query/sqlFieldReference";
-import {setFieldReferenceClass} from './query/sqlQuery'
-import {setPrmFunction} from './query/SQLExpression'
-
-export const usePg = () => {
-  setPrmFunction((prmName: string): string => `$[${prmName}]`);
-  setFieldReferenceClass(PGFieldReference);
-}
+import {FieldReference} from './query/sqlFieldReference';
+import {setFieldReferenceClass} from './query/sqlQuery';
+import {setPrmFunction} from './query/SQLExpression';
 
 export class PGFieldReference<T> extends FieldReference<T> {
   protected encryptField = (fldText: string): string =>
@@ -14,3 +9,8 @@ export class PGFieldReference<T> extends FieldReference<T> {
   protected decryptField = (fldText: string): string =>
     `pgp_sym_decrypt(decode(${fldText}, 'hex'), $[decryptionKey])`;
 }
+
+export const usePg = () => {
+  setPrmFunction((prmName: string): string => `$[${prmName}]`);
+  setFieldReferenceClass(PGFieldReference);
+};

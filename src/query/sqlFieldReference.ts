@@ -1,11 +1,10 @@
 import {DBField} from '../dbModel';
-import {ReferencedSelectTable} from './sqlQuery';
 import {ReferencedTable} from './sqlTableQuery';
-import {ISQLExpression} from './SQLExpression'
+import {ISQLExpression} from './SQLExpression';
 
-export interface IFieldReference<T = any> extends ISQLExpression{
+export interface IFieldReference<T = any> extends ISQLExpression {
   field: DBField;
-  qryTbl: ReferencedSelectTable<T> | ReferencedTable<T>;
+  qryTbl: ReferencedTable<T>;
   alias?: string;
   toSelectSql: () => string;
   toReferenceSql: () => string;
@@ -20,14 +19,10 @@ export type IFieldReferenceFn<T = any> = (
 
 export class FieldReference<T> implements IFieldReference {
   public field: DBField;
-  public qryTbl: ReferencedSelectTable<T> | ReferencedTable<T>;
+  public qryTbl: ReferencedTable<T>;
   public alias?: string;
 
-  constructor(
-    qryTbl: ReferencedSelectTable<T> | ReferencedTable<T>,
-    field: DBField,
-    alias?: string
-  ) {
+  constructor(qryTbl: ReferencedTable<T>, field: DBField, alias?: string) {
     this.field = field;
     this.qryTbl = qryTbl;
     if (alias) {
@@ -41,9 +36,7 @@ export class FieldReference<T> implements IFieldReference {
 
   public toSelectSql = (): string => {
     const {name} = this.field;
-    return `${this.readValueToSql()} as "${
-      this.alias ? this.alias : name
-    }"`;
+    return `${this.readValueToSql()} as "${this.alias ? this.alias : name}"`;
   };
 
   public toReferenceSql = (): string =>
@@ -58,7 +51,10 @@ export class FieldReference<T> implements IFieldReference {
     return `${isEncrypted ? `${this.decryptField(strVal)}` : strVal}`;
   };
 
-  public writeValueToSQL = (value: ISQLExpression | undefined, isInsert = false): string => {
+  public writeValueToSQL = (
+    value: ISQLExpression | undefined,
+    isInsert = false
+  ): string => {
     const {
       isCC,
       isEncrypted,
