@@ -3,9 +3,8 @@ import {ReferencedTable} from './sqlTableQuery';
 import {ISQLExpression} from './SQLExpression';
 
 export interface IFieldReference<T = any> extends ISQLExpression {
-  field: DBField;
+  field: DBField<T>;
   qryTbl: ReferencedTable<T>;
-  alias?: string;
   toSelectSql: () => string;
   toReferenceSql: () => string;
   toUpdateFieldSql: (val: ISQLExpression) => string;
@@ -18,16 +17,20 @@ export type IFieldReferenceFn<T = any> = (
 ) => IFieldReference<T>;
 
 export class FieldReference<T> implements IFieldReference {
-  public field: DBField;
+  public field: DBField<T>;
   public qryTbl: ReferencedTable<T>;
-  public alias?: string;
+  protected _alias?: string;
 
-  constructor(qryTbl: ReferencedTable<T>, field: DBField, alias?: string) {
+  constructor(qryTbl: ReferencedTable<T>, field: DBField<T>, alias?: string) {
     this.field = field;
     this.qryTbl = qryTbl;
     if (alias) {
-      this.alias = alias;
+      this._alias = alias;
     }
+  }
+
+  public get alias() {
+    return this._alias || (this.field.name as string);
   }
 
   public isSimpleValue = () => true;
@@ -35,8 +38,7 @@ export class FieldReference<T> implements IFieldReference {
   public toSql = () => this.toReferenceSql();
 
   public toSelectSql = (): string => {
-    const {name} = this.field;
-    return `${this.readValueToSql()} as "${this.alias ? this.alias : name}"`;
+    return `${this.readValueToSql()} as "${this.alias}"`;
   };
 
   public toReferenceSql = (): string =>

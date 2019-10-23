@@ -17,7 +17,7 @@ export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
 
 export const createFieldReferenceFn = <T>(
   qryTbl: ReferencedTable<T>,
-  field: DBField,
+  field: DBField<T>,
   alias?: string
 ): IFieldReferenceFn<T> => {
   const ref: IFieldReference<T> = new FieldReferenceClass(qryTbl, field);
@@ -107,7 +107,9 @@ export class SelectQry {
     const fields = Object.values(this.from)
       .map(selectTable =>
         selectTable.tbl.fields.map(field =>
-          (selectTable[field.name] as IFieldReferenceFn)().toSelectSql()
+          (selectTable[
+            field.name as string
+          ] as IFieldReferenceFn)().toSelectSql()
         )
       )
       .reduce((allFields, newFields) => allFields.concat(newFields), []);

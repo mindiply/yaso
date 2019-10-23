@@ -1,5 +1,9 @@
 import indentString from 'indent-string';
-import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
+import {
+  FieldReference,
+  IFieldReference,
+  IFieldReferenceFn
+} from './sqlFieldReference';
 import {createDBTbl, DBTable} from '../dbModel';
 import {createFieldReferenceFn, ToStringFn} from './sqlQuery';
 import {countNLines, parenthesizeSql} from './utils';
@@ -14,38 +18,49 @@ export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
 };
 
-export interface ITableQuery<T> {
-  updateQrySql: (
-    changes: TableFieldUpdates<T>,
-    where: ISQLExpression
-  ) => string;
-  insertQrySql: (info: TableFieldUpdates<T>) => string;
-  selectQrySql: (prms?: {
-    fields?: Array<keyof T>;
-    where: ISQLExpression;
-  }) => string;
-}
-
-type UpdateFn<T> = (
-  changes: TableFieldUpdates<T>,
-  where: ISQLExpression
-) => string;
-
-export type ITableQueryCallback = <T>(tblQry: ITableQuery<T>) => void;
+type SelectFieldRef<T> = keyof T | ISQLExpression;
 
 interface ITableSelectQryParameters<T> {
-  fields?: Array<keyof T>;
+  fields?: SelectFieldRef<T>[];
   where?: ISQLExpression;
 }
+
+type SelectFn<T> = (parameters: ITableSelectQryParameters<T>) => string;
+
+export interface IInsertQryParameters<T> {
+  fields: TableFieldUpdates<T>;
+  returnFields?: boolean | Array<keyof T>;
+}
+
+type InsertFn<T> = (parameters: IInsertQryParameters<T>) => string;
+
+export interface IUpdateQryParameters<T> extends IInsertQryParameters<T> {
+  where: ISQLExpression;
+}
+
+type UpdateFn<T> = (parameters: IUpdateQryParameters<T>) => string;
+
+export interface ITableQuery<T> {
+  updateQrySql: UpdateFn<T>;
+  insertQrySql: InsertFn<T>;
+  selectQrySql: SelectFn<T>;
+}
+
+type FieldsToStrMapperFn<T> = (
+  fieldNames: Array<keyof T> | undefined
+) => string;
 
 class ReferencedTableImpl<T = any> implements ITableQuery<T> {
   [fieldname: string]:
     | IFieldReferenceFn
     | DBTable
     | ToStringFn
+    | InsertFn<T>
     | UpdateFn<T>
+    | SelectFn<T>
     | typeof ReferencedTableImpl.prototype.mapUpdateEntryToSql
     | typeof ReferencedTableImpl.prototype.addUpdateFieldsIfNeeded
+    | FieldsToStrMapperFn<T>
     | string
     | undefined;
 
@@ -58,7 +73,7 @@ class ReferencedTableImpl<T = any> implements ITableQuery<T> {
       this.alias = alias;
     }
     this.tbl.fields.forEach(field => {
-      this[field.name] = createFieldReferenceFn(
+      this[field.name as string] = createFieldReferenceFn(
         this as ReferencedTable<T>,
         field
       );
@@ -69,10 +84,11 @@ class ReferencedTableImpl<T = any> implements ITableQuery<T> {
     `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ''}`;
   public toReferenceSql = (): string => this.alias || this.tbl.dbName;
 
-  public updateQrySql = (
-    inputChanges: TableFieldUpdates<T>,
-    where: ISQLExpression
-  ) => {
+  public updateQrySql: UpdateFn<T> = ({
+    fields: inputChanges,
+    where,
+    returnFields
+  }) => {
     const changes = this.addUpdateFieldsIfNeeded(inputChanges);
     const changeFields: Array<[string, ISQLExpression]> = Object.entries(
       transformFieldUpdatesToSql(changes)
@@ -84,7 +100,7 @@ class ReferencedTableImpl<T = any> implements ITableQuery<T> {
     });
     const whereSql = where.toSql();
     const nLinesWhere = countNLines(whereSql);
-    return `update ${this.toSql()}
+    let sql = `update ${this.toSql()}
 set${changeFields.length > 1 ? '\n' : ''}${indentString(
       changeFields
         .map(([fieldName, fieldValue]) =>
@@ -97,9 +113,18 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
       where.toSql(),
       nLinesWhere > 1 ? 2 : 1
     )}`;
+    if (returnFields) {
+      sql += this.returningFieldsSql(
+        Array.isArray(returnFields) ? returnFields : undefined
+      );
+    }
+    return sql;
   };
 
-  public insertQrySql = (inputChanges: TableFieldUpdates<T>): string => {
+  public insertQrySql: InsertFn<T> = ({
+    fields: inputChanges,
+    returnFields
+  }): string => {
     const changes = this.addUpdateFieldsIfNeeded(inputChanges);
     const changeFields: Array<[string, ISQLExpression]> = Object.entries(
       transformFieldUpdatesToSql(changes)
@@ -124,36 +149,24 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
           : parenthesizeSql(nameValue[1].toSql())
       )
       .join(',\n');
-    return `insert into ${this.tbl.dbName} (${
+    let sql = `insert into ${this.tbl.dbName} (${
       changeFields.length > 1 ? '\n' : ''
     }${changeFields.length > 1 ? indentString(fieldList, 2) : fieldList}${
       changeFields.length > 1 ? '\n' : ''
     }) values (${changeFields.length > 1 ? '\n' : ''}${
       changeFields.length > 1 ? indentString(valueList, 2) : valueList
     }${changeFields.length > 1 ? '\n' : ''})`;
+    if (returnFields) {
+      sql += this.returningFieldsSql(
+        Array.isArray(returnFields) ? returnFields : undefined
+      );
+    }
+    return sql;
   };
 
   public selectQrySql = (prms: ITableSelectQryParameters<T> = {}): string => {
     const {fields, where} = prms;
-    const selectFields = fields
-      ? fields.map(fieldName =>
-          (this[fieldName as string] as IFieldReferenceFn)()
-        )
-      : this.tbl.fields.map(field =>
-          (this[field.name as string] as IFieldReferenceFn)()
-        );
-    selectFields.sort((a, b) => {
-      if (a.field.name < b.field.name) {
-        return -1;
-      }
-      if (a.field.name == b.field.name) {
-        return 0;
-      }
-      return 1;
-    });
-    const fieldsSql = selectFields
-      .map(field => field.toSelectSql())
-      .join(',\n');
+    const fieldsSql = this.fieldsTableSelect(fields);
     const nFieldsLineCount = countNLines(fieldsSql);
     const whereSql = where ? where.toSql() : '';
     const whereLineCount = countNLines(whereSql);
@@ -169,6 +182,48 @@ from ${this.toSql()}${
             : ' ' + whereSql)
         : ''
     }`;
+  };
+
+  protected fieldsTableSelect = (
+    fieldRefs: SelectFieldRef<T>[] | undefined
+  ): string => {
+    const selectFields = fieldRefs
+      ? fieldRefs.map(fieldRef => {
+          if (typeof fieldRef === 'string') {
+            return (this[fieldRef as string] as IFieldReferenceFn)();
+          }
+          return fieldRef as IFieldReference;
+        })
+      : this.tbl.fields.map(field =>
+          (this[field.name as string] as IFieldReferenceFn)()
+        );
+    selectFields.sort((a, b) => {
+      if ((a.alias || '') < (b.alias || '')) {
+        return -1;
+      }
+      if ((a.alias || '') == (b.alias || '')) {
+        return 0;
+      }
+      return 1;
+    });
+    const fieldsSql = selectFields
+      .map(field => (field.toSelectSql ? field.toSelectSql() : field.toSql()))
+      .join(',\n');
+    return fieldsSql;
+  };
+
+  protected returningFieldsSql = (
+    fieldNames: Array<keyof T> | undefined
+  ): string => {
+    const returnSql = this.fieldsTableSelect(fieldNames);
+    const nReturnLines = countNLines(returnSql);
+    if (nReturnLines > 0) {
+      return `\nreturning${
+        nReturnLines > 1 ? '\n' + indentString(returnSql, 2) : ' ' + returnSql
+      }`;
+    } else {
+      return '';
+    }
   };
 
   protected addUpdateFieldsIfNeeded = (
@@ -230,27 +285,39 @@ export function createReferencedTable<T>(
 export const updateQuerySql = <T>(
   dbTable: DBTable<T>,
   changes: TableFieldUpdates<T>,
-  where: ISQLExpression
+  where: ISQLExpression,
+  returning?: Array<keyof T> | boolean
 ): string => {
   const tblQuery = new ReferencedTableImpl(dbTable);
-  return tblQuery.updateQrySql(changes, where);
+  return tblQuery.updateQrySql({
+    fields: changes,
+    where,
+    returnFields: returning
+  });
 };
 
-type IGenerateChangesCallbackFn<T> = (
+type IGenerateInsertParametersCallbackFn<T> = (
   qryTable: ReferencedTable<T>
-) => TableFieldUpdates<T>;
+) => IInsertQryParameters<T>;
 
 interface ITableUpdatedQrySql {
-  <T>(dbTable: DBTable<T>, changes: TableFieldUpdates<T>): string;
-  <T>(dbTable: DBTable<T>, cb: IGenerateChangesCallbackFn<T>): string;
+  <T>(
+    dbTable: DBTable<T>,
+    changes: TableFieldUpdates<T>,
+    returnFields?: boolean | Array<keyof T>
+  ): string;
+  <T>(dbTable: DBTable<T>, cb: IGenerateInsertParametersCallbackFn<T>): string;
 }
 export const insertQuerySql: ITableUpdatedQrySql = <T>(
   dbTable: DBTable<T>,
-  changesOrCb: TableFieldUpdates<T> | IGenerateChangesCallbackFn<T>
+  changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
+  returnFields?: boolean | Array<keyof T>
 ): string => {
   const tblQuery = createReferencedTable(dbTable);
-  const changes =
-    typeof changesOrCb === 'object' ? changesOrCb : changesOrCb(tblQuery);
+  const changes: IInsertQryParameters<T> =
+    typeof changesOrCb === 'object'
+      ? {fields: changesOrCb, returnFields}
+      : changesOrCb(tblQuery);
   return tblQuery.insertQrySql(changes);
 };
 

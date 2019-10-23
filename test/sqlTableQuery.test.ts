@@ -9,9 +9,11 @@ import {
   prm,
   usePg,
   or,
-  isNull
+  isNull,
+  tableSelectSql,
+  count,
+  alias
 } from '../src';
-import {tableSelectSql} from '../src/query/sqlTableQuery';
 
 usePg();
 
@@ -56,10 +58,10 @@ describe('Testing table update queries', () => {
   const tstDbTbl = new DBTable(tblDef);
   const qryTbl = tbl(tstDbTbl);
   test('Basic update', () => {
-    const sql = qryTbl.updateQrySql(
-      {name: prm('newName')},
-      equals(qryTbl._id, prm('_id'))
-    );
+    const sql = qryTbl.updateQrySql({
+      fields: {name: prm('newName')},
+      where: equals(qryTbl._id, prm('_id'))
+    });
     console.log(sql);
     const expectedSql = `update tst
 set
@@ -69,10 +71,10 @@ where tst.tst_id = $[_id]`;
     expect(sql).toBe(expectedSql);
   });
   test('Update 2 fields', () => {
-    const sql = qryTbl.updateQrySql(
-      {name: prm('name'), normal: 'normalValue'},
-      and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)])
-    );
+    const sql = qryTbl.updateQrySql({
+      fields: {name: prm('name'), normal: 'normalValue'},
+      where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)])
+    });
     const expectedSql = `update tst
 set
   tst_cc = tst_cc + 1,
@@ -81,6 +83,30 @@ set
 where
   tst.tst_id = 18
   and tst.tst_cc > 3`;
+
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Update 2 fields and return all of them', () => {
+    const sql = qryTbl.updateQrySql({
+      fields: {name: prm('name'), normal: 'normalValue'},
+      where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)]),
+      returnFields: true
+    });
+    const expectedSql = `update tst
+set
+  tst_cc = tst_cc + 1,
+  tst_name = encode(pgp_sym_encrypt($[name], $[encryptionKey]), 'hex'),
+  tst_normal = 'normalValue'
+where
+  tst.tst_id = 18
+  and tst.tst_cc > 3
+returning
+  tst.tst_id as "_id",
+  tst.tst_cc as "cc",
+  pgp_sym_decrypt(decode(tst.tst_name, 'hex'), $[decryptionKey]) as "name",
+  tst.tst_normal as "normal",
+  tst.tst_updated_at as "updatedAt"`;
 
     expect(sql).toBe(expectedSql);
   });
@@ -113,6 +139,15 @@ describe('Testing insert queries', () => {
     expect(sql).toBe(expectedSql);
   });
 
+  test('Insert single field, no updates, returning one field', () => {
+    const expectedSql = `insert into nup (descr) values ($[fullName])
+returning nup.descr as "description"`;
+    const sql = insertQuerySql(nupTbl, {description: prm('fullName')}, [
+      'description'
+    ]);
+    expect(sql).toBe(expectedSql);
+  });
+
   test('Insert multiple fields, no updates', () => {
     const expectedSql = `insert into nup (
   descr,
@@ -122,6 +157,20 @@ describe('Testing insert queries', () => {
   10
 )`;
     const sql = insertQuerySql(nupTbl, {id: 10, description: 'Paolo'});
+    expect(sql).toBe(expectedSql);
+  });
+  test('Insert multiple fields, no updates, returning all fields', () => {
+    const expectedSql = `insert into nup (
+  descr,
+  id
+) values (
+  'Paolo',
+  10
+)
+returning
+  nup.descr as "description",
+  nup.id as "id"`;
+    const sql = insertQuerySql(nupTbl, {id: 10, description: 'Paolo'}, true);
     expect(sql).toBe(expectedSql);
   });
 });
@@ -173,6 +222,17 @@ from tst
 where tst.tst_id = 'idtest'`;
     const sql = tableSelectSql(qryTbl, tst => ({
       fields: ['name', 'when'],
+      where: equals(tst.id, 'idtest')
+    }));
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('One aggregate field, one simple condition', () => {
+    const expectedSql = `select count(1) as "nTst"
+from tst
+where tst.tst_id = 'idtest'`;
+    const sql = tableSelectSql(qryTbl, tst => ({
+      fields: [alias(count(1), 'nTst')],
       where: equals(tst.id, 'idtest')
     }));
     expect(sql).toBe(expectedSql);

@@ -12,8 +12,8 @@ const updatedAtRE = /_cc$/i;
 const tableRegistryByName: Map<string, DBTable<any>> = new Map();
 const tableRegistryByDbName: Map<string, DBTable<any>> = new Map();
 
-export class DBField implements ITableField {
-  public readonly name: string;
+export class DBField<T> implements ITableField<T> {
+  public readonly name: keyof T;
   public readonly dbName: string;
   public readonly isEncrypted: boolean;
   public readonly isHash: boolean;
@@ -22,7 +22,7 @@ export class DBField implements ITableField {
   public readonly isInsertTimestamp: boolean;
   public readonly isUpdateTimestamp: boolean;
 
-  constructor(def: ITableFieldDefinition) {
+  constructor(def: ITableFieldDefinition<T>) {
     this.name = def.name;
     this.dbName = def.dbName;
     this.isEncrypted = def.isEncrypted || false;
@@ -40,13 +40,13 @@ export class DBTable<DataType = any> implements ITable<DataType> {
   public readonly hasCC: boolean;
   public readonly hasInsertTimestamp: boolean;
   public readonly hasUpdateTimestamp: boolean;
-  public readonly fields: DBField[];
-  public readonly ccField?: DBField;
-  public readonly insertTimestampField?: DBField;
-  public readonly updateTimestampField?: DBField;
+  public readonly fields: DBField<DataType>[];
+  public readonly ccField?: DBField<DataType>;
+  public readonly insertTimestampField?: DBField<DataType>;
+  public readonly updateTimestampField?: DBField<DataType>;
 
-  protected readonly fieldsByDBName: Map<string, DBField>;
-  protected readonly fieldsByName: Map<string, DBField>;
+  protected readonly fieldsByDBName: Map<string, DBField<DataType>>;
+  protected readonly fieldsByName: Map<keyof DataType, DBField<DataType>>;
 
   constructor(def: ITableDefinition<DataType>) {
     this.name = def.name;
@@ -82,14 +82,14 @@ export class DBTable<DataType = any> implements ITable<DataType> {
   }
 
   public getFieldByName = (
-    fieldName: string
-  ): ITableFieldDefinition | undefined => {
+    fieldName: keyof DataType
+  ): ITableFieldDefinition<DataType> | undefined => {
     return this.fieldsByName.get(fieldName);
   };
 
   public getFieldByDbName = (
     fieldDbName: string
-  ): ITableFieldDefinition | undefined => {
+  ): ITableFieldDefinition<DataType> | undefined => {
     return this.fieldsByDBName.get(fieldDbName);
   };
 }

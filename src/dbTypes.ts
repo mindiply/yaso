@@ -1,6 +1,6 @@
-export interface ITableFieldDefinition {
+export interface ITableFieldDefinition<DataType> {
   dbName: string;
-  name: string;
+  name: keyof DataType;
   isEncrypted?: boolean;
   isHash?: boolean;
   isPwHash?: boolean;
@@ -9,7 +9,7 @@ export interface ITableFieldDefinition {
   isUpdateTimestamp?: boolean;
 }
 
-export interface ITableField extends ITableFieldDefinition {
+export interface ITableField<T> extends ITableFieldDefinition<T> {
   isCC: boolean;
   isInsertTimestamp: boolean;
   isUpdateTimestamp: boolean;
@@ -18,7 +18,7 @@ export interface ITableField extends ITableFieldDefinition {
 export interface ITableDefinition<DataType> {
   dbName: string;
   name: string;
-  fields: ITableFieldDefinition[];
+  fields: ITableFieldDefinition<DataType>[];
 }
 
 export interface ITable<DataType> extends ITableDefinition<DataType> {

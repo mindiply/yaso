@@ -3,6 +3,7 @@ import {parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
 
 export interface ISQLExpression {
+  alias: string | undefined;
   toSql: () => string;
   isSimpleValue: () => boolean;
 }
@@ -21,9 +22,44 @@ export function prmToSql(name: string) {
 }
 
 export abstract class BaseSqlExpression implements ISQLExpression {
+  get alias(): string | undefined {
+    return undefined;
+  }
   isSimpleValue: () => boolean = () => false;
   toSql = () => '';
 }
+
+export interface ISqlAliasExpression extends ISQLExpression {
+  expression: ISQLExpression;
+}
+
+export class AliasSqlExpression extends BaseSqlExpression
+  implements ISqlAliasExpression {
+  protected readonly _alias: string;
+  public expression: ISQLExpression;
+
+  constructor(expression: ISQLExpression, alias: string) {
+    super();
+    this.expression = expression;
+    this._alias = alias;
+  }
+
+  public get alias() {
+    return this._alias;
+  }
+
+  public isSimpleValue = () => this.expression.isSimpleValue();
+
+  public toSql = () =>
+    `${
+      this.expression.isSimpleValue()
+        ? this.expression.toSql()
+        : parenthesizeSql(this.expression.toSql())
+    } as "${this._alias}"`;
+}
+
+export const alias = (expression: ISQLExpression, alias: string) =>
+  new AliasSqlExpression(expression, alias);
 
 export class NamedParameter extends BaseSqlExpression
   implements INamedParameter {
@@ -420,3 +456,47 @@ export function or(operands: ISQLExpression[]) {
 export function not(operand: ISQLExpression) {
   return new LogicalOperatorCond(LogicalOperator.NOT, operand);
 }
+
+export enum AggregateOperator {
+  count = 'count',
+  min = 'min',
+  max = 'max',
+  sum = 'sum'
+}
+
+export interface ISqlAggregateOperator {
+  expression: ISQLExpression;
+  operator: AggregateOperator;
+}
+
+class SQLAggregateOperator extends BaseSqlExpression
+  implements ISqlAggregateOperator {
+  public expression: ISQLExpression;
+  public operator: AggregateOperator;
+
+  constructor(type: AggregateOperator, expression: ISQLExpression | DataValue) {
+    super();
+    this.operator = type;
+    this.expression =
+      expression instanceof BaseSqlExpression
+        ? expression
+        : new SQLValue(expression as DataValue);
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = () =>
+    `${this.operator}${parenthesizeSql(this.expression.toSql())}`;
+}
+
+export const count = (expr: ISQLExpression | DataValue) =>
+  new SQLAggregateOperator(AggregateOperator.count, expr);
+
+export const min = (expr: ISQLExpression | DataValue) =>
+  new SQLAggregateOperator(AggregateOperator.min, expr);
+
+export const max = (expr: ISQLExpression | DataValue) =>
+  new SQLAggregateOperator(AggregateOperator.max, expr);
+
+export const sum = (expr: ISQLExpression | DataValue) =>
+  new SQLAggregateOperator(AggregateOperator.sum, expr);

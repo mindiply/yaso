@@ -3,6 +3,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- Add calculated fields (subqueries) to table definitions
+- Complete coverage of SQL expressions
+  - In and not in statements in particular
+- Ability to work with sql statements as sql expressions in join and wheres
+- Refactor SQL dialect specific code to be in unique place and
+easy to adapt for other dialects
+
+## [0.0.3] - TBA
+
+### Added
+- Added option to return fields from insert and update queries.
+- Added alias, min, max, sum, count SQL expressions
+
+### Changes
+- Insert and update queries now use a parameters object rather
+than positional parameters
+
+### Fixes
+- **tableSelectSql** exported from my index file
+
 ## [0.0.2] - 2019-10-23
 
 ### Added

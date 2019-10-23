@@ -20,10 +20,19 @@ export {
   mod,
   lessThan,
   mul,
-  sub
+  sub,
+  min,
+  max,
+  count,
+  sum,
+  alias
 } from './query/SQLExpression';
 
-export {insertQuerySql, updateQuerySql} from './query/sqlTableQuery';
+export {
+  insertQuerySql,
+  tableSelectSql,
+  updateQuerySql
+} from './query/sqlTableQuery';
 export {selectFrom} from './query/sqlQuery';
 export {tbl} from './query/sqlTableQuery';
 export {usePg} from './pgSQL';
