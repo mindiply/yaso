@@ -1,20 +1,22 @@
-import { DBField, DBTable } from "../dbModel";
+import {DBField, DBTable} from '../dbModel';
 import {
   FieldReference,
   IFieldReference,
   IFieldReferenceFn
-} from "./sqlFieldReference";
-import indentString from "indent-string";
-import { IJoin, join as joinFn, Join, JoinType } from "./sqlJoin";
-import {IBaseWhereCond, IWhere} from './sqlWhere'
+} from './sqlFieldReference';
+import indentString from 'indent-string';
+import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
+import {ReferencedTable} from './sqlTableQuery';
+import {ISQLExpression} from './SQLExpression';
+import {countNLines} from './utils';
 
 let FieldReferenceClass: typeof FieldReference = FieldReference;
 export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
   FieldReferenceClass = fieldRefClass;
 }
 
-const createFieldReferenceFn = <T>(
-  qryTbl: ReferencedSelectTable<T>,
+export const createFieldReferenceFn = <T>(
+  qryTbl: ReferencedSelectTable<T> | ReferencedTable<T>,
   field: DBField,
   alias?: string
 ): IFieldReferenceFn<T> => {
@@ -30,11 +32,7 @@ const createFieldReferenceFn = <T>(
   };
 };
 
-type ToStringFn = () => string;
-
-type ReferencedTableFields<T> = {
-  [P in keyof T]: IFieldReferenceFn<T[P]>;
-};
+export type ToStringFn = () => string;
 
 class SelectTable<T = any> {
   [fieldname: string]:
@@ -60,7 +58,7 @@ class SelectTable<T = any> {
   }
 
   public toSql = (): string =>
-    `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ""}`;
+    `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ''}`;
 
   public toReferenceSql = (): string => this.alias || this.tbl.dbName;
 }
@@ -72,7 +70,7 @@ export type ReferencedSelectTable<T> = ISelectTable<T> &
     [P in keyof T]: IFieldReferenceFn<T[P]>;
   };
 
-export function createSelectTable<T>(
+export function tbl<T>(
   dbTable: DBTable<T>,
   alias?: string
 ): ReferencedSelectTable<T> {
@@ -99,21 +97,21 @@ export interface IQryCallback {
 export class SelectQry {
   protected from: ReferencedSelectTable<any>[];
   protected selectFields?: IFieldReference[];
-  protected rootWhere?: IBaseWhereCond;
+  protected rootWhere?: ISQLExpression;
   protected joins?: Join;
 
   constructor(tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[]) {
     if (!tables) {
-      throw new Error("Expected at least one table");
+      throw new Error('Expected at least one table');
     }
     this.from = (Array.isArray(tables) ? tables : [tables]).map(table =>
-      table instanceof SelectTable ? table : createSelectTable(table)
+      table instanceof SelectTable ? table : tbl(table)
     );
 
     const aliases: Set<string> = new Set();
     this.from.forEach(tbl => {
       if (aliases.has(tbl.toReferenceSql())) {
-        throw new Error("Alias already in query");
+        throw new Error('Alias already in query');
       }
       aliases.add(tbl.toReferenceSql());
     });
@@ -143,60 +141,61 @@ export class SelectQry {
     return this;
   };
 
-  public where = (rootCond: IWhere) => {
+  public where = (rootCond: ISQLExpression) => {
     this.rootWhere = rootCond;
-  }
+  };
 
-  public toSelectAllSql = (nSpaces = 0) => {
+  public toSelectAllSql = () => {
     const fields = Object.values(this.from)
       .map(selectTable =>
         selectTable.tbl.fields.map(field =>
-          indentString(
-            (selectTable[field.name] as IFieldReferenceFn)().toSelectSql(),
-            nSpaces + 2
-          )
+          (selectTable[field.name] as IFieldReferenceFn)().toSelectSql()
         )
       )
       .reduce((allFields, newFields) => allFields.concat(newFields), []);
-    return fields.join(",\n");
+    return fields.join(',\n');
   };
 
   public toString = (nSpaces = 0): string => {
+    const fieldsSql = this.selectFields
+      ? this.selectFields
+          .map(selectField => selectField.toSelectSql())
+          .join(',\n')
+      : this.toSelectAllSql();
+    const whereSql = this.rootWhere ? this.rootWhere.toSql() : undefined;
     return indentString(
-      `select
-${
-  this.selectFields
-    ? this.selectFields
-        .map(selectField =>
-          indentString(selectField.toSelectSql(), nSpaces + 2)
-        )
-        .join(",\n")
-    : this.toSelectAllSql()
-}
-from${this.fromSql(nSpaces)}${this.rootWhere ? `
-where
-${indentString(this.rootWhere.toSql(), nSpaces + 2)}` : ''}`,
+      `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
+        fieldsSql,
+        countNLines(fieldsSql) > 1 ? 2 : 1
+      )}
+from${this.fromSql()}${
+        whereSql
+          ? `
+where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
+              whereSql,
+              countNLines(whereSql) > 1 ? 2 : 1
+            )}`
+          : ''
+      }`,
       nSpaces
     );
   };
 
-  protected fromSql = (nSpaces = 0): string => {
+  protected fromSql = (): string => {
     if (this.joins) {
-      return this.joins.toSql(nSpaces + 2);
+      return this.joins.toSql();
     }
     const tables = Object.values(this.from);
     if (tables.length === 1) {
       return ` ${tables[0].toSql()}`;
     }
     return (
-      "\n" +
+      '\n' +
       Object.values(this.from)
-        .map(qryTbl => indentString(qryTbl.toSql(), nSpaces + 2))
-        .join(",\n")
+        .map(qryTbl => indentString(qryTbl.toSql(), 2))
+        .join(',\n')
     );
   };
-
-
 }
 
 export function selectFrom<T>(
@@ -225,4 +224,3 @@ export function selectFrom(
   }
   return qry;
 }
-

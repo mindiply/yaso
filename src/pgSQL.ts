@@ -1,6 +1,6 @@
 import { FieldReference } from "./query/sqlFieldReference";
-import {setPrmFunction} from './query/sqlWhere'
 import {setFieldReferenceClass} from './query/sqlQuery'
+import {setPrmFunction} from './query/SQLExpression'
 
 export const usePg = () => {
   setPrmFunction((prmName: string): string => `$[${prmName}]`);

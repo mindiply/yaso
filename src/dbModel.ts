@@ -38,12 +38,12 @@ export class DBTable<DataType = any> implements ITable<DataType> {
   public readonly hasInsertTimestamp: boolean;
   public readonly hasUpdateTimestamp: boolean;
   public readonly fields: DBField[];
+  public readonly ccField?: DBField;
+  public readonly insertTimestampField?: DBField;
+  public readonly updateTimestampField?: DBField;
 
-  private readonly fieldsByDBName: Map<string, DBField>;
-  private readonly fieldsByName: Map<string, DBField>;
-  private readonly ccField?: DBField;
-  private readonly insertTimestampField?: DBField;
-  private readonly updateTimestampField?: DBField;
+  protected readonly fieldsByDBName: Map<string, DBField>;
+  protected readonly fieldsByName: Map<string, DBField>;
 
   constructor(def: ITableDefinition<DataType>) {
     this.name = def.name;
@@ -55,23 +55,20 @@ export class DBTable<DataType = any> implements ITable<DataType> {
       this.fieldsByName.set(dbField.name, dbField);
       this.fieldsByDBName.set(dbField.dbName, dbField);
     });
-    this.hasCC = this.fields.findIndex(field => field.isCC) !== -1;
+    const ccIndex = this.fields.findIndex(field => field.isCC)
+    this.hasCC = ccIndex !== -1;
     if (this.hasCC) {
-      this.ccField = this.fields[this.fields.findIndex(field => field.isCC)];
+      this.ccField = this.fields[ccIndex];
     }
-    this.hasInsertTimestamp =
-      this.fields.findIndex(field => field.isInsertTimestamp) !== -1;
+    const insertTimestampIndex = this.fields.findIndex(field => field.isInsertTimestamp);
+    this.hasInsertTimestamp = insertTimestampIndex !== -1;
     if (this.hasInsertTimestamp) {
-      this.insertTimestampField = this.fields[
-        this.fields.findIndex(field => field.isInsertTimestamp)
-      ];
+      this.insertTimestampField = this.fields[insertTimestampIndex];
     }
-    this.hasUpdateTimestamp =
-      this.fields.findIndex(field => field.isUpdateTimestamp) !== -1;
+    const updateTimestampIndex = this.fields.findIndex(field => field.isUpdateTimestamp);
+    this.hasUpdateTimestamp = updateTimestampIndex !== -1;
     if (this.hasUpdateTimestamp) {
-      this.updateTimestampField = this.fields[
-        this.fields.findIndex(field => field.isUpdateTimestamp)
-      ];
+      this.updateTimestampField = this.fields[updateTimestampIndex];
     }
     tableRegistryByName.set(this.name, this);
     tableRegistryByDbName.set(this.dbName, this);
@@ -88,83 +85,10 @@ export class DBTable<DataType = any> implements ITable<DataType> {
   ): ITableFieldDefinition | undefined => {
     return this.fieldsByDBName.get(fieldDbName);
   };
+}
 
-  public insertQueryForFields = ({
-    fieldNames,
-    withReturnFields = true
-  }: {
-    fieldNames: string[];
-    updatedCCFields?: boolean;
-    withReturnFields?: boolean;
-  }): string => {
-    const fields: DBField[] = this.mapFieldsNamesToFields(fieldNames);
-    if (this.ccField && fields.findIndex(field => field.isCC) === -1) {
-      fields.push(this.ccField);
-    }
-    if (
-      this.updateTimestampField &&
-      fields.findIndex(field => field.isUpdateTimestamp) === -1
-    ) {
-      fields.push(this.updateTimestampField);
-    }
-    if (
-      this.insertTimestampField &&
-      fields.findIndex(field => field.isInsertTimestamp) === -1
-    ) {
-      fields.push(this.insertTimestampField);
-    }
-    return "";
-    // return `
-    //     insert into ${this.dbName} (
-    //         ${fields.map(field => field.sqlInsertField()).join(',\n')}
-    //     ) values (
-    //         ${fields.map(field => field.sqlInsertValue()).join(',\n')}
-    //     )${withReturnFields ? `returning ${this.sqlSelectFields()}` : ''}
-    //  `;
-  };
-
-  public updateQueryForFields = ({
-    fieldNames,
-    withReturnFields = true
-  }: {
-    fieldNames: string[];
-    updateCCFields?: boolean;
-    withReturnFields?: boolean;
-  }): string => {
-    const fieldsToUpdate: DBField[] = this.mapFieldsNamesToFields(fieldNames);
-    if (this.ccField && fieldsToUpdate.findIndex(field => field.isCC) === -1) {
-      fieldsToUpdate.push(this.ccField);
-    }
-    if (
-      this.updateTimestampField &&
-      fieldsToUpdate.findIndex(field => field.isUpdateTimestamp) === -1
-    ) {
-      fieldsToUpdate.push(this.updateTimestampField);
-    }
-    // const fieldsUpdates = fieldsToUpdate
-    //   .map(fieldToUpdate => fieldToUpdate.sqlUpdateField())
-    //   .join(',\n');
-    // return `
-    //   update ${this.dbName}
-    //   set
-    //     ${fieldsUpdates}
-    //   where
-    //     ${this.dbName}_id = $[${this.dbName.toLowerCase()}Id]${
-    //   withReturnFields
-    //     ? `
-    //     returning
-    //       ${this.sqlSelectFields()}
-    //   `
-    //     : ''
-    // }
-    // `;
-    return "";
-  };
-
-  private mapFieldsNamesToFields = (fieldNames: string[]): DBField[] =>
-    fieldNames
-      .filter(fieldName => this.fieldsByName.has(fieldName))
-      .map(fieldName => this.fieldsByName.get(fieldName)!);
+export const createDBTbl = <T>(tblDef: ITableDefinition<T>): DBTable<T> => {
+  return new DBTable<T>(tblDef);
 }
 
 const tableRegistryByName: Map<string, DBTable<any>> = new Map();
