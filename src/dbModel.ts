@@ -7,7 +7,7 @@ import {
 
 const ccRE = /_cc$/i;
 const createdAtRE = /_created_at$/i;
-const updatedAtRE = /_cc$/i;
+const updatedAtRE = /_updated_at$/i;
 
 const tableRegistryByName: Map<string, DBTable<any>> = new Map();
 const tableRegistryByDbName: Map<string, DBTable<any>> = new Map();
@@ -28,9 +28,11 @@ export class DBField<T> implements ITableField<T> {
     this.isEncrypted = def.isEncrypted || false;
     this.isHash = def.isHash || false;
     this.isPwHash = def.isPwHash || false;
-    this.isCC = ccRE.test(def.dbName);
-    this.isInsertTimestamp = createdAtRE.test(def.dbName);
-    this.isUpdateTimestamp = updatedAtRE.test(def.dbName);
+    this.isCC = def.isCC || ccRE.test(def.dbName);
+    this.isInsertTimestamp =
+      def.isInsertTimestamp || createdAtRE.test(def.dbName);
+    this.isUpdateTimestamp =
+      def.isUpdateTimestamp || updatedAtRE.test(def.dbName);
   }
 }
 

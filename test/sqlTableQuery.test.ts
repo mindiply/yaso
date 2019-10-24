@@ -62,11 +62,11 @@ describe('Testing table update queries', () => {
       fields: {name: prm('newName')},
       where: equals(qryTbl._id, prm('_id'))
     });
-    console.log(sql);
     const expectedSql = `update tst
 set
   tst_cc = tst_cc + 1,
-  tst_name = encode(pgp_sym_encrypt($[newName], $[encryptionKey]), 'hex')
+  tst_name = encode(pgp_sym_encrypt($[newName], $[encryptionKey]), 'hex'),
+  tst_updated_at = current_timestamp
 where tst.tst_id = $[_id]`;
     expect(sql).toBe(expectedSql);
   });
@@ -79,7 +79,8 @@ where tst.tst_id = $[_id]`;
 set
   tst_cc = tst_cc + 1,
   tst_name = encode(pgp_sym_encrypt($[name], $[encryptionKey]), 'hex'),
-  tst_normal = 'normalValue'
+  tst_normal = 'normalValue',
+  tst_updated_at = current_timestamp
 where
   tst.tst_id = 18
   and tst.tst_cc > 3`;
@@ -97,7 +98,8 @@ where
 set
   tst_cc = tst_cc + 1,
   tst_name = encode(pgp_sym_encrypt($[name], $[encryptionKey]), 'hex'),
-  tst_normal = 'normalValue'
+  tst_normal = 'normalValue',
+  tst_updated_at = current_timestamp
 where
   tst.tst_id = 18
   and tst.tst_cc > 3
@@ -116,6 +118,7 @@ describe('Testing insert queries', () => {
   interface INoUpdateTbl {
     id: number;
     description: string;
+    when: Date;
   }
   const noUpdateTblDef: ITableDefinition<INoUpdateTbl> = {
     name: 'noupdate',
@@ -148,29 +151,60 @@ returning nup.descr as "description"`;
     expect(sql).toBe(expectedSql);
   });
 
+  interface IUpdateTbl {
+    id: number;
+    description: string;
+    when: Date;
+  }
+  const updateTblDef: ITableDefinition<IUpdateTbl> = {
+    name: 'noupdate',
+    dbName: 'nup',
+    fields: [
+      {
+        name: 'id',
+        dbName: 'id'
+      },
+      {
+        name: 'description',
+        dbName: 'descr'
+      },
+      {
+        name: 'when',
+        dbName: 'inserted_on',
+        isInsertTimestamp: true
+      }
+    ]
+  };
+  const upTbl = new DBTable(updateTblDef);
+
   test('Insert multiple fields, no updates', () => {
     const expectedSql = `insert into nup (
   descr,
-  id
+  id,
+  inserted_on
 ) values (
   'Paolo',
-  10
+  10,
+  current_timestamp
 )`;
-    const sql = insertQuerySql(nupTbl, {id: 10, description: 'Paolo'});
+    const sql = insertQuerySql(upTbl, {id: 10, description: 'Paolo'});
     expect(sql).toBe(expectedSql);
   });
   test('Insert multiple fields, no updates, returning all fields', () => {
     const expectedSql = `insert into nup (
   descr,
-  id
+  id,
+  inserted_on
 ) values (
   'Paolo',
-  10
+  10,
+  current_timestamp
 )
 returning
   nup.descr as "description",
-  nup.id as "id"`;
-    const sql = insertQuerySql(nupTbl, {id: 10, description: 'Paolo'}, true);
+  nup.id as "id",
+  nup.inserted_on as "when"`;
+    const sql = insertQuerySql(upTbl, {id: 10, description: 'Paolo'}, true);
     expect(sql).toBe(expectedSql);
   });
 });

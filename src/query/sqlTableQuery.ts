@@ -6,7 +6,7 @@ import {
 } from './sqlFieldReference';
 import {createDBTbl, DBTable} from '../dbModel';
 import {createFieldReferenceFn, ToStringFn} from './sqlQuery';
-import {countNLines, parenthesizeSql} from './utils';
+import {countNLines} from './utils';
 import {
   DataValue,
   ISQLExpression,
@@ -125,7 +125,7 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
     fields: inputChanges,
     returnFields
   }): string => {
-    const changes = this.addUpdateFieldsIfNeeded(inputChanges);
+    const changes = this.addUpdateFieldsIfNeeded(inputChanges, true);
     const changeFields: Array<[string, ISQLExpression]> = Object.entries(
       transformFieldUpdatesToSql(changes)
     );
@@ -134,21 +134,18 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
       if (a[0] === b[0]) return 0;
       return 1;
     });
-    const fieldList = changeFields
-      .map(
-        ([fieldName]) =>
-          ((this[fieldName] as IFieldReferenceFn<T>)() as FieldReference<T>)
-            .field.dbName
-      )
-      .join(',\n');
+    const fldList: string[] = [];
+    const valList: string[] = [];
+    changeFields.forEach(([fieldName, fieldValue]) => {
+      const fieldRef = (this[fieldName] as IFieldReferenceFn<
+        T
+      >)() as FieldReference<T>;
+      fldList.push(fieldRef.field.dbName);
+      valList.push(fieldRef.writeValueToSQL(fieldValue, true));
+    });
 
-    const valueList = changeFields
-      .map(nameValue =>
-        nameValue[1].isSimpleValue()
-          ? nameValue[1].toSql()
-          : parenthesizeSql(nameValue[1].toSql())
-      )
-      .join(',\n');
+    const fieldList = fldList.join(',\n');
+    const valueList = valList.join(',\n');
     let sql = `insert into ${this.tbl.dbName} (${
       changeFields.length > 1 ? '\n' : ''
     }${changeFields.length > 1 ? indentString(fieldList, 2) : fieldList}${

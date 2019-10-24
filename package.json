@@ -6,7 +6,7 @@
   "scripts": {
     "build": "babel src --ignore \"src/**/.git*\" --extensions \".ts\" --out-dir lib --source-maps",
     "build:types": "tsc --emitDeclarationOnly",
-    "build:watch": "babel src --watch --ignore \"src/**/.git*\" --extensions \"..ts\" --out-dir app --source-maps",
+    "build:watch": "babel src --watch --ignore \"src/**/.git*\" --extensions \".ts\" --out-dir lib --source-maps",
     "lint": "eslint --ext .ts \"src/**\"",
     "prepublish": "npm run lint && npm run test && npm run build:types && npm run build",
     "test": "jest"
