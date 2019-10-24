@@ -21,6 +21,7 @@ to be passed onto the preferred db connection library
 
 ### Fixes
 - Added boolean as accepted SQL value
+- Update and insert timestamps now tested and added correctly
 
 ## [0.0.3] - 2019-10-23
 
