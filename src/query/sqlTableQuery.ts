@@ -8,7 +8,6 @@ import {createDBTbl, DBTable} from '../dbModel';
 import {createFieldReferenceFn, ToStringFn} from './sqlQuery';
 import {countNLines} from './utils';
 import {
-  BaseSqlExpression,
   DataValue,
   ISQLExpression,
   transformFieldUpdatesToSql
@@ -138,6 +137,7 @@ where${nLinesWhere > 1 ? '\n' : ''}${indentString(
     const fldList: string[] = [];
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
+      console.log({fieldName, fieldValue});
       const fieldRef = (this[fieldName] as IFieldReferenceFn<
         T
       >)() as FieldReference<T>;
@@ -284,15 +284,15 @@ interface ITableStatementSql<T> extends ISQLExpression {
   qryTbl: ReferencedTable<T>;
 }
 
-class BaseTableStatementSql<T> extends BaseSqlExpression
-  implements ITableStatementSql<T> {
-  public qryTbl: ReferencedTable<T>;
-
-  constructor(qryTbl: ReferencedTable<T>) {
-    super();
-    this.qryTbl = qryTbl;
-  }
-}
+// class BaseTableStatementSql<T> extends BaseSqlExpression
+//   implements ITableStatementSql<T> {
+//   public qryTbl: ReferencedTable<T>;
+//
+//   constructor(qryTbl: ReferencedTable<T>) {
+//     super();
+//     this.qryTbl = qryTbl;
+//   }
+// }
 
 export const updateQuerySql = <T>(
   dbTable: DBTable<T>,

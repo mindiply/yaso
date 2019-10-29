@@ -106,7 +106,7 @@ where
 returning
   tst.tst_id as "_id",
   tst.tst_cc as "cc",
-  pgp_sym_decrypt(decode(tst.tst_name, 'hex'), $[decryptionKey]) as "name",
+  case when tst.tst_name then pgp_sym_decrypt(decode(tst.tst_name, 'hex'), $[encryptionKey]) else null end as "name",
   tst.tst_normal as "normal",
   tst.tst_updated_at as "updatedAt"`;
 

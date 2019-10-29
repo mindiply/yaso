@@ -7,10 +7,12 @@ export class PGFieldReference<T> extends FieldReference<T> {
     `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;
 
   protected decryptField = (fldText: string): string =>
-    `pgp_sym_decrypt(decode(${fldText}, 'hex'), $[decryptionKey])`;
+    `case when ${fldText} is not null then pgp_sym_decrypt(decode(${fldText}, 'hex'), $[encryptionKey]) else null end`;
 
-  protected hashField = (fldText: string): string => `hash(${fldText})`;
-  protected hashPwField = (fldText: string): string => `pwHash(${fldText})`;
+  protected hashField = (fldText: string): string =>
+    `encode(digest(${fldText}, 'sha256'), 'hex')`;
+  protected hashPwField = (fldText: string): string =>
+    `encode(crypt(${fldText}, gen_salt('md5')), 'hex')`;
 }
 
 export const usePg = () => {

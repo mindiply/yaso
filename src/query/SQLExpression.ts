@@ -1,12 +1,13 @@
 import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
 import {parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
-import {IQueryContext, QueryContext} from './sqlQuery';
+import {IQueryContext} from './sqlQuery';
 
 export interface ISQLExpression {
   alias: string | undefined;
   toSql: () => string;
   isSimpleValue: () => boolean;
+  queryContext?: IQueryContext;
 }
 
 export interface INamedParameter extends ISQLExpression {
@@ -24,26 +25,29 @@ export function prmToSql(name: string) {
 
 export abstract class BaseSqlExpression implements ISQLExpression {
   protected root?: ISQLExpression;
-  protected queryContext?: IQueryContext;
+  protected _queryContext?: IQueryContext;
+
+  get alias(): string | undefined {
+    return undefined;
+  }
+
+  isSimpleValue: () => boolean = () => false;
+
+  toSql = () => '';
+
+  set queryContext(context: IQueryContext | undefined) {
+    this._queryContext = context;
+  }
+
+  get queryContext(): IQueryContext | undefined {
+    return this._queryContext;
+  }
 
   protected constructor(root?: ISQLExpression) {
     if (root) {
       this.root = root;
     }
   }
-
-  protected getQueryContext = (): IQueryContext | null => {
-    if (this.root && this.queryContext) {
-      return this.queryContext;
-    }
-    return null;
-  };
-
-  get alias(): string | undefined {
-    return undefined;
-  }
-  isSimpleValue: () => boolean = () => false;
-  toSql = () => '';
 }
 
 export interface ISqlAliasExpression extends ISQLExpression {
@@ -55,10 +59,17 @@ export class AliasSqlExpression extends BaseSqlExpression
   protected readonly _alias: string;
   public expression: ISQLExpression;
 
-  constructor(expression: ISQLExpression, alias: string) {
+  constructor(
+    expression: ISQLExpression,
+    alias: string,
+    context?: IQueryContext
+  ) {
     super();
     this.expression = expression;
     this._alias = alias;
+    if (context) {
+      this.queryContext = context;
+    }
   }
 
   public get alias() {
@@ -73,6 +84,11 @@ export class AliasSqlExpression extends BaseSqlExpression
         ? this.expression.toSql()
         : parenthesizeSql(this.expression.toSql())
     } as "${this._alias}"`;
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.expression.queryContext = context;
+  }
 }
 
 export const alias = (expression: ISQLExpression, alias: string) =>
@@ -110,6 +126,9 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
     ) {
       return true;
     }
+    if (this.value instanceof Uint8Array) {
+      return true;
+    }
     return false;
   };
 
@@ -117,6 +136,9 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
     const {value} = this;
     if (value instanceof NamedParameter) {
       return value.toSql();
+    }
+    if (value instanceof Uint8Array) {
+      return `\\x${Buffer.from(value).toString('hex')}`;
     }
     if (value instanceof Date) {
       return value.toISOString();
@@ -156,6 +178,7 @@ export type DataValue =
   | string
   | number
   | boolean
+  | Uint8Array
   | Date
   | IFieldReferenceFn
   | INamedParameter;
@@ -222,14 +245,20 @@ export class SQLMathBinaryExpression extends BaseSqlExpression
         ? this.right.toSql()
         : parenthesizeSql(this.right.toSql())
     }`;
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.left.queryContext = context;
+    this.right.queryContext = context;
+  }
 }
 
 class RawSQL extends BaseSqlExpression {
   protected readonly rawSql: string;
   protected readonly _isSimpleValue: boolean;
-  constructor(raqSql: string, isSimpleValue?: boolean) {
+  constructor(rawSql: string, isSimpleValue?: boolean) {
     super();
-    this.rawSql = raqSql;
+    this.rawSql = rawSql;
     this._isSimpleValue = Boolean(isSimpleValue || false);
   }
 
@@ -312,6 +341,11 @@ class IsNullWhereCond extends BaseSqlExpression implements IWhereNullCond {
         : parenthesizeSql(this.operand.toSql())
     } ${this.type === NullComparatorType.isNull ? 'is null' : 'is not null'}`;
   };
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.operand.queryContext = context;
+  }
 }
 
 export function isNull(field: ISQLExpression | DataValue) {
@@ -378,6 +412,12 @@ export class BinaryOperatorExpression extends BaseSqlExpression
       : parenthesizeSql(this.right.toSql());
     return `${left} ${this.operator} ${right}`;
   };
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.left.queryContext = context;
+    this.right.queryContext = context;
+  }
 }
 
 export interface ISqlLogicalExpression extends ISQLExpression {
@@ -415,6 +455,11 @@ export class LogicalOperatorCond extends BaseSqlExpression
       )
       .join(`\n${this.operator} `);
   };
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.operands.forEach(operand => (operand.queryContext = context));
+  }
 }
 
 export function equals(
@@ -509,6 +554,11 @@ class SQLAggregateOperator extends BaseSqlExpression
 
   public toSql = () =>
     `${this.operator}${parenthesizeSql(this.expression.toSql())}`;
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.expression.queryContext = context;
+  }
 }
 
 export const count = (expr: ISQLExpression | DataValue) =>
@@ -540,6 +590,11 @@ class SQLListExpression extends BaseSqlExpression
 
   public toSql = () =>
     parenthesizeSql(this.listItems.map(item => item.toSql()).join(', '));
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.listItems.forEach(operand => (operand.queryContext = context));
+  }
 }
 
 export const list = (
@@ -589,6 +644,12 @@ class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
         ? this.right.toSql()
         : parenthesizeSql(this.right.toSql())
     }`;
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.left.queryContext = context;
+    this.right.queryContext = context;
+  }
 }
 
 export const sqlIn = (

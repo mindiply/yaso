@@ -103,7 +103,10 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
   protected rootWhere?: ISQLExpression;
   protected joins?: Join;
 
-  constructor(tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[]) {
+  constructor(
+    tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[],
+    context?: IQueryContext
+  ) {
     super();
     if (!tables) {
       throw new Error('Expected at least one table');
@@ -111,14 +114,9 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
     this.from = (Array.isArray(tables) ? tables : [tables]).map(table =>
       table instanceof DBTable ? tbl(table) : table
     );
-
-    const aliases: Set<string> = new Set();
-    this.from.forEach(tbl => {
-      if (aliases.has(tbl.toReferenceSql())) {
-        throw new Error('Alias already in query');
-      }
-      aliases.add(tbl.toReferenceSql());
-    });
+    if (context) {
+      this.queryContext = context;
+    }
   }
 
   public executeCallback = (cb: IQryCallback): void =>
@@ -132,6 +130,9 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
       typeof fld === 'function'
         ? (fld() as IFieldReference)
         : (fld as ISQLExpression)
+    );
+    this.selectFields.forEach(
+      field => (field.queryContext = this.queryContext)
     );
     return this;
   };
@@ -151,6 +152,7 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
 
   public where = (rootCond: ISQLExpression) => {
     this.rootWhere = rootCond;
+    this.rootWhere.queryContext = this.queryContext;
   };
 
   public toSelectAllSql = () => {
@@ -214,6 +216,21 @@ where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
   };
 
   public toSql = () => this.toString();
+
+  set queryContext(context: IQueryContext) {
+    super.queryContext = context;
+    this.propagateContext();
+  }
+
+  protected propagateContext = () => {
+    this.selectFields &&
+      this.selectFields.forEach(
+        field => (field.queryContext = this.queryContext)
+      );
+    if (this.rootWhere) {
+      this.rootWhere.queryContext = this.queryContext;
+    }
+  };
 }
 
 export function selectFrom<T>(
