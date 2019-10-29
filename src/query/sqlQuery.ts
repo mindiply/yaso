@@ -7,8 +7,52 @@ import {
 import indentString from 'indent-string';
 import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
 import {ReferencedTable, tbl} from './sqlTableQuery';
-import {ISQLExpression} from './SQLExpression';
-import {countNLines} from './utils';
+import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
+import {countNLines, parenthesizeSql} from './utils';
+
+export interface IQueryContext {
+  addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;
+}
+
+export class QueryContext implements IQueryContext {
+  protected aliases: Map<string, ReferencedTable<any>>;
+  protected tables: Map<string, Map<string, ReferencedTable<any>>>;
+  protected counter: number;
+
+  constructor() {
+    this.aliases = new Map();
+    this.tables = new Map();
+    this.counter = 1;
+  }
+
+  protected addTableRef = <T>(tableRef: ReferencedTable<T>, alias: string) => {
+    this.aliases.set(alias, tableRef);
+    const dbTblMap = this.tables.get(tableRef.tbl.dbName) || new Map();
+    dbTblMap.set(alias, tableRef);
+  };
+
+  protected findAvailableAlias<T>(tbl: ReferencedTable<T>): string {
+    const tblDbName = tbl.tbl.dbName;
+    let alias = tblDbName;
+    for (
+      ;
+      this.aliases.has(alias);
+      alias = `${tblDbName}${String(this.counter)}`, this.counter++
+    ) {}
+    return alias;
+  }
+
+  public addTable = <T>(tbl: ReferencedTable<T>, alias?: string): string => {
+    if (alias) {
+      if (this.aliases.has(alias)) {
+        throw new Error('Explicit alias is already user');
+      }
+    }
+    const aliasToUse = alias || this.findAvailableAlias(tbl);
+    this.addTableRef(tbl, aliasToUse);
+    return aliasToUse;
+  };
+}
 
 let FieldReferenceClass: typeof FieldReference = FieldReference;
 export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
@@ -50,13 +94,17 @@ export interface IQryCallback {
   ): void;
 }
 
-export class SelectQry {
+type SelectFields = Array<IFieldReference | ISQLExpression>;
+type SelectFieldPrm = IFieldReferenceFn | ISQLExpression;
+
+export class SelectQry extends BaseSqlExpression implements ISQLExpression {
   protected from: ReferencedTable<any>[];
-  protected selectFields?: IFieldReference[];
+  protected selectFields?: SelectFields;
   protected rootWhere?: ISQLExpression;
   protected joins?: Join;
 
   constructor(tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[]) {
+    super();
     if (!tables) {
       throw new Error('Expected at least one table');
     }
@@ -78,11 +126,13 @@ export class SelectQry {
     // @ts-ignore
     cb(this, ...this.from);
 
-  public fields = (
-    fields: IFieldReferenceFn | IFieldReferenceFn[]
-  ): SelectQry => {
+  public fields = (fields: SelectFieldPrm | SelectFieldPrm[]): SelectQry => {
     const flds = Array.isArray(fields) ? fields : [fields];
-    this.selectFields = flds.map(fld => fld());
+    this.selectFields = flds.map(fld =>
+      typeof fld === 'function'
+        ? (fld() as IFieldReference)
+        : (fld as ISQLExpression)
+    );
     return this;
   };
 
@@ -119,7 +169,13 @@ export class SelectQry {
   public toString = (nSpaces = 0): string => {
     const fieldsSql = this.selectFields
       ? this.selectFields
-          .map(selectField => selectField.toSelectSql())
+          .map(selectField => {
+            return (selectField as IFieldReference).toSelectSql
+              ? (selectField as IFieldReference).toSelectSql()
+              : selectField.isSimpleValue()
+              ? selectField.toSql()
+              : parenthesizeSql(selectField.toSql());
+          })
           .join(',\n')
       : this.toSelectAllSql();
     const whereSql = this.rootWhere ? this.rootWhere.toSql() : undefined;
@@ -156,6 +212,8 @@ where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
         .join(',\n')
     );
   };
+
+  public toSql = () => this.toString();
 }
 
 export function selectFrom<T>(

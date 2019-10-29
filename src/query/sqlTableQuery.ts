@@ -8,6 +8,7 @@ import {createDBTbl, DBTable} from '../dbModel';
 import {createFieldReferenceFn, ToStringFn} from './sqlQuery';
 import {countNLines} from './utils';
 import {
+  BaseSqlExpression,
   DataValue,
   ISQLExpression,
   transformFieldUpdatesToSql
@@ -277,6 +278,20 @@ export function createReferencedTable<T>(
   alias?: string
 ): ReferencedTable<T> {
   return new ReferencedTableImpl(dbTable, alias) as ReferencedTable<T>;
+}
+
+interface ITableStatementSql<T> extends ISQLExpression {
+  qryTbl: ReferencedTable<T>;
+}
+
+class BaseTableStatementSql<T> extends BaseSqlExpression
+  implements ITableStatementSql<T> {
+  public qryTbl: ReferencedTable<T>;
+
+  constructor(qryTbl: ReferencedTable<T>) {
+    super();
+    this.qryTbl = qryTbl;
+  }
 }
 
 export const updateQuerySql = <T>(

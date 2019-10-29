@@ -1,6 +1,7 @@
 import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
 import {parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
+import {IQueryContext, QueryContext} from './sqlQuery';
 
 export interface ISQLExpression {
   alias: string | undefined;
@@ -22,6 +23,22 @@ export function prmToSql(name: string) {
 }
 
 export abstract class BaseSqlExpression implements ISQLExpression {
+  protected root?: ISQLExpression;
+  protected queryContext?: IQueryContext;
+
+  protected constructor(root?: ISQLExpression) {
+    if (root) {
+      this.root = root;
+    }
+  }
+
+  protected getQueryContext = (): IQueryContext | null => {
+    if (this.root && this.queryContext) {
+      return this.queryContext;
+    }
+    return null;
+  };
+
   get alias(): string | undefined {
     return undefined;
   }
@@ -48,7 +65,7 @@ export class AliasSqlExpression extends BaseSqlExpression
     return this._alias;
   }
 
-  public isSimpleValue = () => this.expression.isSimpleValue();
+  public isSimpleValue = () => true;
 
   public toSql = () =>
     `${
@@ -505,3 +522,82 @@ export const max = (expr: ISQLExpression | DataValue) =>
 
 export const sum = (expr: ISQLExpression | DataValue) =>
   new SQLAggregateOperator(AggregateOperator.sum, expr);
+
+interface ISqlListExpression extends ISQLExpression {
+  listItems: ISQLExpression[];
+}
+
+class SQLListExpression extends BaseSqlExpression
+  implements ISqlListExpression {
+  public listItems: ISQLExpression[];
+
+  constructor(items: ISQLExpression[]) {
+    super();
+    this.listItems = items;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = () =>
+    parenthesizeSql(this.listItems.map(item => item.toSql()).join(', '));
+}
+
+export const list = (
+  items: Array<ISQLExpression | DataValue>
+): ISqlListExpression => {
+  return new SQLListExpression(
+    items.map(item =>
+      item instanceof BaseSqlExpression ? item : new SQLValue(item as DataValue)
+    )
+  );
+};
+
+export enum InNotInOperator {
+  in = 'in',
+  notIn = 'not in'
+}
+
+export interface IInNotInStatement {
+  type: InNotInOperator;
+  left: ISQLExpression;
+  right: ISQLExpression;
+}
+
+class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
+  public type: InNotInOperator;
+  public left: ISQLExpression;
+  public right: ISQLExpression;
+
+  constructor(
+    left: ISQLExpression,
+    type: InNotInOperator,
+    right: ISQLExpression
+  ) {
+    super();
+    this.type = type;
+    this.left = left;
+    this.right = right;
+  }
+
+  public toSql = () =>
+    `${
+      this.left.isSimpleValue()
+        ? this.left.toSql()
+        : parenthesizeSql(this.left.toSql())
+    } ${this.type} ${
+      this.right.isSimpleValue
+        ? this.right.toSql()
+        : parenthesizeSql(this.right.toSql())
+    }`;
+}
+
+export const sqlIn = (
+  left: ISQLExpression,
+  right: ISqlListExpression
+): IInNotInStatement => new InNotInStatement(left, InNotInOperator.in, right);
+
+export const notIn = (
+  left: ISQLExpression,
+  right: ISqlListExpression
+): IInNotInStatement =>
+  new InNotInStatement(left, InNotInOperator.notIn, right);

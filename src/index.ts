@@ -25,7 +25,10 @@ export {
   max,
   count,
   sum,
-  alias
+  alias,
+  list,
+  sqlIn,
+  notIn
 } from './query/SQLExpression';
 
 export {
