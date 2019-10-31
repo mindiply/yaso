@@ -18,6 +18,13 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.5] - TBA
+
+### Fixes
+- Generation of encrypted and hash fields in where clauses were within
+brackets
+- Removed encode function with pgcrypt for password hashes
+
 ## [0.0.4] - 2019-10-31
 
 ### Added

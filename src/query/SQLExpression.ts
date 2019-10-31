@@ -1,5 +1,5 @@
 import {FieldReference, IFieldReferenceFn} from './sqlTableFieldReference';
-import {parenthesizeSql} from './utils';
+import {Id, parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
 import {IQueryContext} from './sqlQuery';
 
@@ -195,6 +195,7 @@ export type DataValue =
   | IFieldReferenceFn<boolean>
   | IFieldReferenceFn<Date>
   | IFieldReferenceFn<Uint8Array>
+  | IFieldReferenceFn<Id>
   | INamedParameter;
 
 export function prm(name: string): NamedParameter {

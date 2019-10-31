@@ -14,9 +14,9 @@ export class PGFieldReference<T> extends FieldReference<T> {
   protected hashField = (fldText: string): string =>
     `encode(digest(${fldText}, 'sha256'), 'hex')`;
   protected hashPwField = (fldText: string): string =>
-    `encode(crypt(${fldText}, gen_salt('md5')), 'hex')`;
+    `crypt(${fldText}, gen_salt('md5'))`;
   protected hashPwFieldVal = (fldText: string): string =>
-    `encode(crypt(${fldText}, ${this.toReferenceSql()}), 'hex')`;
+    `crypt(${fldText}, ${this.toReferenceSql()})`;
 }
 
 export const usePg = () => {

@@ -294,3 +294,53 @@ where
     expect(sql).toBe(expectedSql);
   });
 });
+
+describe('Select, insert and update with encrypted and hashed fields', () => {
+  interface IEHTst {
+    id: string;
+    name: string;
+    pwHash: string;
+    nameDigest: string;
+    description: string;
+  }
+  const tstDef: ITableDefinition<IEHTst> = {
+    name: 'EncryptionHashingTest',
+    dbName: 'enc',
+    fields: [
+      {
+        dbName: 'id',
+        name: 'id'
+      },
+      {
+        dbName: 'name',
+        name: 'name',
+        isEncrypted: true
+      },
+      {
+        dbName: 'pw_hash',
+        name: 'pwHash',
+        isPwHash: true
+      },
+      {
+        dbName: 'name_digest',
+        name: 'nameDigest',
+        isHash: true
+      },
+      {
+        dbName: 'description',
+        name: 'description'
+      }
+    ]
+  };
+  const tstQry = tbl(tstDef);
+  test('select encrypted and where on hashed', () => {
+    const expectdSql = `select case when enc.name is not null then pgp_sym_decrypt(decode(enc.name, 'hex'), $[encryptionKey]) else null end as "name"
+from enc
+where enc.pw_hash = crypt($[pw], enc.pw_hash)`;
+    const sql = tstQry.selectQrySql({
+      fields: ['name'],
+      where: equals(tstQry.pwHash, tstQry.pwHash().readValueToSql(prm('pw')))
+    });
+    expect(sql).toBe(expectdSql);
+  });
+});

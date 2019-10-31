@@ -1,5 +1,5 @@
 import {DBField, DBTable} from '../dbModel';
-import {ISQLExpression} from './SQLExpression';
+import {ISQLExpression, rawSql} from './SQLExpression';
 import {ToStringFn} from './sqlQuery';
 
 export interface IFieldReference<T = any> extends ISQLExpression {
@@ -8,8 +8,8 @@ export interface IFieldReference<T = any> extends ISQLExpression {
   toSelectSql: () => string;
   toReferenceSql: () => string;
   toUpdateFieldSql: (val: ISQLExpression) => string;
-  readValueToSql: (val: ISQLExpression) => string;
-  writeValueToSQL: (val: ISQLExpression) => string;
+  readValueToSql: (val: ISQLExpression) => ISQLExpression;
+  writeValueToSQL: (val: ISQLExpression) => string | ISQLExpression;
 }
 
 export type IFieldReferenceFn<T = any> = (
@@ -38,7 +38,7 @@ export class FieldReference<T> implements IFieldReference {
   public toSql = () => this.toReferenceSql();
 
   public toSelectSql = (): string => {
-    return `${this.readValueToSql()} as "${this.alias}"`;
+    return `${this.readValueToSql().toSql()} as "${this.alias}"`;
   };
 
   public toReferenceSql = (): string =>
@@ -46,17 +46,17 @@ export class FieldReference<T> implements IFieldReference {
 
   public toInsertSqlField = (): string => this.field.dbName;
 
-  public readValueToSql = (value?: ISQLExpression): string => {
+  public readValueToSql = (value?: ISQLExpression): ISQLExpression => {
     const {isEncrypted, isPwHash, isHash} = this.field;
     const strVal = value ? value.toSql() : this.toReferenceSql();
 
     return isEncrypted
-      ? this.decryptField(strVal)
+      ? rawSql(this.decryptField(strVal), true)
       : isHash
-      ? this.hashField(strVal)
+      ? rawSql(this.hashField(strVal), true)
       : isPwHash
-      ? this.hashPwFieldVal(strVal)
-      : strVal;
+      ? rawSql(this.hashPwFieldVal(strVal), true)
+      : rawSql(strVal);
   };
 
   public writeValueToSQL = (
