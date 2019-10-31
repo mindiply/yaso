@@ -37,6 +37,6 @@ export {
   updateQuerySql
 } from './query/sqlTableQuery';
 export {selectFrom} from './query/sqlQuery';
-export {tbl} from './query/sqlTableQuery';
 export {usePg} from './pgSQL';
 export {tblCCFields, Id, ITbl, IId} from './query/utils';
+export {tbl} from './query/sqlTableQuery';

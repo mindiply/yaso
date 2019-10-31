@@ -1,5 +1,4 @@
-import {FieldReference} from './query/sqlFieldReference';
-import {setFieldReferenceClass} from './query/sqlQuery';
+import {FieldReference, setFieldReferenceClass} from './query/sqlTableFieldReference';
 import {setPrmFunction} from './query/SQLExpression';
 
 export class PGFieldReference<T> extends FieldReference<T> {
@@ -13,6 +12,8 @@ export class PGFieldReference<T> extends FieldReference<T> {
     `encode(digest(${fldText}, 'sha256'), 'hex')`;
   protected hashPwField = (fldText: string): string =>
     `encode(crypt(${fldText}, gen_salt('md5')), 'hex')`;
+  protected hashPwFieldVal = (fldText: string): string =>
+    `encode(crypt(${fldText}, ${this.toReferenceSql()}), 'hex')`;
 }
 
 export const usePg = () => {

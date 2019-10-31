@@ -1,14 +1,10 @@
-import {DBField, DBTable} from '../dbModel';
-import {
-  FieldReference,
-  IFieldReference,
-  IFieldReferenceFn
-} from './sqlFieldReference';
+import {DBTable} from '../dbModel';
+import {IFieldReference, IFieldReferenceFn, ReferencedTable} from './sqlTableFieldReference';
 import indentString from 'indent-string';
 import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
-import {ReferencedTable, tbl} from './sqlTableQuery';
 import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
 import {countNLines, parenthesizeSql} from './utils';
+import {tbl} from "./sqlTableQuery";
 
 export interface IQueryContext {
   addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;
@@ -53,28 +49,6 @@ export class QueryContext implements IQueryContext {
     return aliasToUse;
   };
 }
-
-let FieldReferenceClass: typeof FieldReference = FieldReference;
-export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
-  FieldReferenceClass = fieldRefClass;
-}
-
-export const createFieldReferenceFn = <T>(
-  qryTbl: ReferencedTable<T>,
-  field: DBField<T>,
-  alias?: string
-): IFieldReferenceFn<T> => {
-  const ref: IFieldReference<T> = new FieldReferenceClass(qryTbl, field);
-  if (alias) {
-    ref.alias = alias;
-  }
-  return (newAlias?: string): IFieldReference => {
-    if (newAlias) {
-      ref.alias = newAlias;
-    }
-    return ref;
-  };
-};
 
 export type ToStringFn = () => string;
 

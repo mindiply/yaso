@@ -12,7 +12,8 @@ import {
   isNull,
   tableSelectSql,
   count,
-  alias
+  alias,
+  updateQuerySql
 } from '../src';
 
 usePg();
@@ -56,12 +57,11 @@ describe('Testing table update queries', () => {
     ]
   };
   const tstDbTbl = new DBTable(tblDef);
-  const qryTbl = tbl(tstDbTbl);
   test('Basic update', () => {
-    const sql = qryTbl.updateQrySql({
+    const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('newName')},
       where: equals(qryTbl._id, prm('_id'))
-    });
+    }));
     const expectedSql = `update tst
 set
   tst_cc = tst_cc + 1,
@@ -71,10 +71,10 @@ where tst.tst_id = $[_id]`;
     expect(sql).toBe(expectedSql);
   });
   test('Update 2 fields', () => {
-    const sql = qryTbl.updateQrySql({
+    const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('name'), normal: 'normalValue'},
       where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)])
-    });
+    }));
     const expectedSql = `update tst
 set
   tst_cc = tst_cc + 1,
@@ -89,11 +89,11 @@ where
   });
 
   test('Update 2 fields and return all of them', () => {
-    const sql = qryTbl.updateQrySql({
+    const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('name'), normal: 'normalValue'},
       where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)]),
       returnFields: true
-    });
+    }));
     const expectedSql = `update tst
 set
   tst_cc = tst_cc + 1,
@@ -106,7 +106,7 @@ where
 returning
   tst.tst_id as "_id",
   tst.tst_cc as "cc",
-  case when tst.tst_name then pgp_sym_decrypt(decode(tst.tst_name, 'hex'), $[encryptionKey]) else null end as "name",
+  case when tst.tst_name is not null then pgp_sym_decrypt(decode(tst.tst_name, 'hex'), $[encryptionKey]) else null end as "name",
   tst.tst_normal as "normal",
   tst.tst_updated_at as "updatedAt"`;
 

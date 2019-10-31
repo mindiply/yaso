@@ -1,13 +1,14 @@
-import {FieldReference, IFieldReferenceFn} from './sqlFieldReference';
+import {FieldReference, IFieldReferenceFn} from './sqlTableFieldReference';
 import {parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
 import {IQueryContext} from './sqlQuery';
 
 export interface ISQLExpression {
-  alias: string | undefined;
+  alias?: string;
   toSql: () => string;
   isSimpleValue: () => boolean;
   queryContext?: IQueryContext;
+  root?: ISQLExpression;
 }
 
 export interface INamedParameter extends ISQLExpression {
@@ -24,7 +25,7 @@ export function prmToSql(name: string) {
 }
 
 export abstract class BaseSqlExpression implements ISQLExpression {
-  protected root?: ISQLExpression;
+  protected _root?: ISQLExpression;
   protected _queryContext?: IQueryContext;
 
   get alias(): string | undefined {
@@ -40,12 +41,23 @@ export abstract class BaseSqlExpression implements ISQLExpression {
   }
 
   get queryContext(): IQueryContext | undefined {
+    if (this._root) {
+      return this._root.queryContext;
+    }
     return this._queryContext;
+  }
+
+  set root(rootNode: ISQLExpression | undefined) {
+    this._root = rootNode;
+  }
+
+  get root(): ISQLExpression | undefined {
+    return this._root;
   }
 
   protected constructor(root?: ISQLExpression) {
     if (root) {
-      this.root = root;
+      this._root = root;
     }
   }
 }
@@ -174,13 +186,15 @@ export const transformFieldUpdatesToSql = <T>(
   return sqlChanges;
 };
 
+export type AtomicDataValue = string | number | boolean | Uint8Array | Date;
+
 export type DataValue =
-  | string
-  | number
-  | boolean
-  | Uint8Array
-  | Date
-  | IFieldReferenceFn
+  | AtomicDataValue
+  | IFieldReferenceFn<string>
+  | IFieldReferenceFn<number>
+  | IFieldReferenceFn<boolean>
+  | IFieldReferenceFn<Date>
+  | IFieldReferenceFn<Uint8Array>
   | INamedParameter;
 
 export function prm(name: string): NamedParameter {
