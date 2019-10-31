@@ -1,10 +1,14 @@
 import {DBTable} from '../dbModel';
-import {IFieldReference, IFieldReferenceFn, ReferencedTable} from './sqlTableFieldReference';
+import {
+  IFieldReference,
+  IFieldReferenceFn,
+  ReferencedTable
+} from './sqlTableFieldReference';
 import indentString from 'indent-string';
 import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
 import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
 import {countNLines, parenthesizeSql} from './utils';
-import {tbl} from "./sqlTableQuery";
+import {tbl} from './sqlTableQuery';
 
 export interface IQueryContext {
   addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;

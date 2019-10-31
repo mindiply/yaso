@@ -57,12 +57,16 @@ abstract class BaseTableQuery<T> extends BaseSqlExpression
     const selectFields = fieldRefs
       ? fieldRefs.map(fieldRef => {
           if (typeof fieldRef === 'string') {
-            return (this.refTbl[fieldRef as string] as IFieldReferenceFn)();
+            return ((this.refTbl as BaseReferenceTable)[
+              fieldRef as string
+            ] as IFieldReferenceFn)();
           }
           return fieldRef as IFieldReference;
         })
       : this.refTbl.tbl.fields.map(field =>
-          (this.refTbl[field.name as string] as IFieldReferenceFn)()
+          ((this.refTbl as BaseReferenceTable)[
+            field.name as string
+          ] as IFieldReferenceFn)()
         );
     selectFields.sort((a, b) => {
       if ((a.alias || '') < (b.alias || '')) {
@@ -202,7 +206,9 @@ class BaseWriteTableQuery<T> extends BaseTableQuery<T> {
     string,
     ISQLExpression
   ]): string => {
-    const field = (this.refTbl[fieldName] as IFieldReferenceFn)();
+    const field = ((this.refTbl as BaseReferenceTable)[
+      fieldName
+    ] as IFieldReferenceFn)();
     return field.toUpdateFieldSql(fieldValue);
   };
 }
@@ -222,9 +228,9 @@ class InsertTableQuery<T> extends BaseWriteTableQuery<T> {
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
       console.log({fieldName, fieldValue});
-      const fieldRef = (this.refTbl[fieldName] as IFieldReferenceFn<
-        T
-      >)() as FieldReference<T>;
+      const fieldRef = ((this.refTbl as BaseReferenceTable)[
+        fieldName
+      ] as IFieldReferenceFn<T>)() as FieldReference<T>;
       fldList.push(fieldRef.field.dbName);
       valList.push(fieldRef.writeValueToSQL(fieldValue, true));
     });
@@ -252,23 +258,16 @@ type IGenerateInsertParametersCallbackFn<T> = (
 ) => IInsertQryParameters<T>;
 
 interface ITableInsertQrySql {
-  <T>(
-    dbTable: DBTable<T>,
-    changes: TableFieldUpdates<T>,
-    returnFields?: boolean | Array<keyof T>
-  ): string;
+  <T>(dbTable: DBTable<T>, prms: IInsertQryParameters<T>): string;
   <T>(dbTable: DBTable<T>, cb: IGenerateInsertParametersCallbackFn<T>): string;
 }
 export const insertQuerySql: ITableInsertQrySql = <T>(
   dbTable: DBTable<T>,
-  changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
-  returnFields?: boolean | Array<keyof T>
+  prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
 ): string => {
   const tblRef = createReferencedTable(dbTable);
   const changes: IInsertQryParameters<T> =
-    typeof changesOrCb === 'object'
-      ? {fields: changesOrCb, returnFields}
-      : changesOrCb(tblRef);
+    typeof prmsOrCb === 'object' ? prmsOrCb : prmsOrCb(tblRef);
   const tblQuery = new InsertTableQuery({
     tbl: tblRef,
     ...changes
@@ -326,25 +325,16 @@ type IGenerateUpdateParametersCallbackFn<T> = (
 ) => IUpdateQryParameters<T>;
 
 interface ITableUpdateQrySql {
-  <T>(
-    dbTable: DBTable<T>,
-    changes: TableFieldUpdates<T>,
-    where: ISQLExpression,
-    returnFields?: boolean | Array<keyof T>
-  ): string;
+  <T>(dbTable: DBTable<T>, qryPrms: IUpdateQryParameters<T>): string;
   <T>(dbTable: DBTable<T>, cb: IGenerateUpdateParametersCallbackFn<T>): string;
 }
 export const updateQuerySql: ITableUpdateQrySql = <T>(
   dbTable: DBTable<T>,
-  changesOrCb: TableFieldUpdates<T> | IGenerateUpdateParametersCallbackFn<T>,
-  where?: ISQLExpression,
-  returnFields?: boolean | Array<keyof T>
+  prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
 ): string => {
   const tblRef = createReferencedTable(dbTable);
   const changes: IUpdateQryParameters<T> =
-    typeof changesOrCb === 'object'
-      ? {fields: changesOrCb, where: where!, returnFields}
-      : changesOrCb(tblRef);
+    typeof prmsOrCb === 'object' ? prmsOrCb : prmsOrCb(tblRef);
   const tblQuery = new UpdateTableQuery({
     tbl: tblRef,
     ...changes
@@ -355,28 +345,22 @@ export const updateQuerySql: ITableUpdateQrySql = <T>(
 type MemberFn = (...prms: any[]) => any;
 
 type QueryReferenceTable<T> = ReferencedTable<T> & {
-  insertQuery: (
-    changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
-    returnFields?: boolean | Array<keyof T>
+  insertQry: (
+    prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ) => ISQLExpression;
-  insertQuerySql: (
-    changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
-    returnFields?: boolean | Array<keyof T>
+  insertQrySql: (
+    prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ) => string;
-  updateQuery: (
-    changesOrCb: TableFieldUpdates<T> | IGenerateUpdateParametersCallbackFn<T>,
-    where?: ISQLExpression,
-    returnFields?: boolean | Array<keyof T>
+  updateQry: (
+    prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ) => ISQLExpression;
-  updateQuerySql: (
-    changesOrCb: TableFieldUpdates<T> | IGenerateUpdateParametersCallbackFn<T>,
-    where?: ISQLExpression,
-    returnFields?: boolean | Array<keyof T>
+  updateQrySql: (
+    prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ) => string;
-  selectQuery: (
+  selectQry: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
   ) => ISQLExpression;
-  selectQuerySql: (
+  selectQrySql: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
   ) => string;
 };
@@ -390,54 +374,46 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
     | ToStringFn
     | MemberFn;
 
-  public insertQuery = (
-    changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
-    returnFields?: boolean | Array<keyof T>
+  public insertQry = (
+    prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ): ISQLExpression => {
     const changes: IInsertQryParameters<T> =
-      typeof changesOrCb === 'object'
-        ? {fields: changesOrCb, returnFields}
-        : changesOrCb(this as ReferencedTable<T>);
+      typeof prmsOrCb === 'object'
+        ? prmsOrCb
+        : prmsOrCb(this as ReferencedTable<T>);
     return new InsertTableQuery({
       tbl: this as ReferencedTable<T>,
       ...changes
     });
   };
 
-  public insertQuerySql = (
-    changesOrCb: TableFieldUpdates<T> | IGenerateInsertParametersCallbackFn<T>,
-    returnFields?: boolean | Array<keyof T>
+  public insertQrySql = (
+    prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ): string => {
-    const tblQuery = this.insertQuery(changesOrCb, returnFields);
+    const tblQuery = this.insertQry(prmsOrCb);
     return tblQuery.toSql();
   };
 
-  public updateQuery = (
-    changesOrCb: TableFieldUpdates<T> | IGenerateUpdateParametersCallbackFn<T>,
-    where?: ISQLExpression,
-    returnFields?: boolean | Array<keyof T>
+  public updateQry = (
+    prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ): ISQLExpression => {
     const tblRef = this as ReferencedTable<T>;
     const changes: IUpdateQryParameters<T> =
-      typeof changesOrCb === 'object'
-        ? {fields: changesOrCb, where: where!, returnFields}
-        : changesOrCb(tblRef);
+      typeof prmsOrCb === 'object' ? prmsOrCb : prmsOrCb(tblRef);
     return new UpdateTableQuery({
       tbl: tblRef,
       ...changes
     });
   };
 
-  public updateQuerySql = (
-    changesOrCb: TableFieldUpdates<T> | IGenerateUpdateParametersCallbackFn<T>,
-    where?: ISQLExpression,
-    returnFields?: boolean | Array<keyof T>
+  public updateQrySql = (
+    prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ): string => {
-    const tblQuery = this.updateQuery(changesOrCb, where, returnFields);
+    const tblQuery = this.updateQry(prmsOrCb);
     return tblQuery.toSql();
   };
 
-  public selectQuery = (
+  public selectQry = (
     propsOrCb:
       | ITableSelectQryParameters<T>
       | IGenerateParametersCallbackFn<T> = {}
@@ -448,12 +424,12 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
     return new SelectTableQuery({...props, tbl: refTbl});
   };
 
-  public selectQuerySql = (
+  public selectQrySql = (
     propsOrCb:
       | ITableSelectQryParameters<T>
       | IGenerateParametersCallbackFn<T> = {}
   ): string => {
-    const tblQuery = this.selectQuery(propsOrCb);
+    const tblQuery = this.selectQry(propsOrCb);
     return tblQuery.toSql();
   };
 }

@@ -138,16 +138,19 @@ describe('Testing insert queries', () => {
 
   test('Insert single field, no updates', () => {
     const expectedSql = `insert into nup (descr) values ($[fullName])`;
-    const sql = insertQuerySql(nupTbl, {description: prm('fullName')});
+    const sql = insertQuerySql(nupTbl, {
+      fields: {description: prm('fullName')}
+    });
     expect(sql).toBe(expectedSql);
   });
 
   test('Insert single field, no updates, returning one field', () => {
     const expectedSql = `insert into nup (descr) values ($[fullName])
 returning nup.descr as "description"`;
-    const sql = insertQuerySql(nupTbl, {description: prm('fullName')}, [
-      'description'
-    ]);
+    const sql = insertQuerySql(nupTbl, {
+      fields: {description: prm('fullName')},
+      returnFields: ['description']
+    });
     expect(sql).toBe(expectedSql);
   });
 
@@ -187,7 +190,7 @@ returning nup.descr as "description"`;
   10,
   current_timestamp
 )`;
-    const sql = insertQuerySql(upTbl, {id: 10, description: 'Paolo'});
+    const sql = insertQuerySql(upTbl, {fields: {id: 10, description: 'Paolo'}});
     expect(sql).toBe(expectedSql);
   });
   test('Insert multiple fields, no updates, returning all fields', () => {
@@ -204,7 +207,10 @@ returning
   nup.descr as "description",
   nup.id as "id",
   nup.inserted_on as "when"`;
-    const sql = insertQuerySql(upTbl, {id: 10, description: 'Paolo'}, true);
+    const sql = insertQuerySql(upTbl, {
+      fields: {id: 10, description: 'Paolo'},
+      returnFields: true
+    });
     expect(sql).toBe(expectedSql);
   });
 });

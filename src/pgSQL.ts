@@ -1,4 +1,7 @@
-import {FieldReference, setFieldReferenceClass} from './query/sqlTableFieldReference';
+import {
+  FieldReference,
+  setFieldReferenceClass
+} from './query/sqlTableFieldReference';
 import {setPrmFunction} from './query/SQLExpression';
 
 export class PGFieldReference<T> extends FieldReference<T> {

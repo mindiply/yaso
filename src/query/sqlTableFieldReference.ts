@@ -111,13 +111,6 @@ export class FieldReference<T> implements IFieldReference {
 export type ReferencedTable<T> = {
   [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
 } & {
-  [field: string]:
-    | IFieldReferenceFn
-    | DBTable<T>
-    | string
-    | undefined
-    | ToStringFn;
-} & {
   alias?: string;
   tbl: DBTable<T>;
   toSql: ToStringFn;

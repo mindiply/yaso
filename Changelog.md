@@ -9,15 +9,24 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 - Add calculated fields (subqueries) to table definitions
 - Complete coverage of SQL expressions
-  - In and not in statements in particular
-- Ability to work with sql statements as sql expressions in join and wheres
+  - ~~In and not in statements in particular~~
+  - exists and not exists
+- Ability to work with sql statements as sql expressions in join, from and wheres
 - Refactor SQL dialect specific code to be in unique place and
 easy to adapt for other dialects
 - Overload insert and update queries so that the dictionary of
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
-## [0.0.4] - TBA
+## [0.0.4] - 2019-10-31
+
+### Added
+- Added in and not in expressions
+- Refactored table reference and table query so they have
+separate responsibilities and the queries created from
+tablequery are also sql expressions
+- Basic support for subqueries, still need automated
+alias generation 
 
 ### Fixes
 - Added boolean as accepted SQL value
