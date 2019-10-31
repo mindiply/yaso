@@ -51,7 +51,7 @@ export class FieldReference<T> implements IFieldReference {
     const strVal = value ? value.toSql() : this.toReferenceSql();
 
     return isEncrypted
-      ? `${this.decryptField(strVal)}`
+      ? this.decryptField(strVal)
       : isHash
       ? this.hashField(strVal)
       : isPwHash
