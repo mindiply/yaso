@@ -1,7 +1,8 @@
-import {FieldReference, IFieldReferenceFn} from './sqlTableFieldReference';
+import {FieldReference} from './sqlTableFieldReference';
 import {Id, parenthesizeSql} from './utils';
 import {TableFieldUpdates} from './sqlTableQuery';
 import {IQueryContext} from './sqlQuery';
+import {IFieldReferenceFn} from "../dbTypes";
 
 export interface ISQLExpression {
   alias?: string;

@@ -1,5 +1,5 @@
-import {IFieldReferenceFn} from './sqlTableFieldReference';
 import indentString from 'indent-string';
+import {IFieldReferenceFn} from "../dbTypes";
 
 export enum JoinType {
   inner = 'inner',

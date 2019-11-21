@@ -1,20 +1,7 @@
 import {DBField, DBTable} from '../dbModel';
 import {ISQLExpression, rawSql} from './SQLExpression';
 import {ToStringFn} from './sqlQuery';
-
-export interface IFieldReference<T = any> extends ISQLExpression {
-  field: DBField<T>;
-  qryTbl: ReferencedTable<T>;
-  toSelectSql: () => string;
-  toReferenceSql: () => string;
-  toUpdateFieldSql: (val: ISQLExpression) => string;
-  readValueToSql: (val: ISQLExpression) => ISQLExpression;
-  writeValueToSQL: (val: ISQLExpression) => string | ISQLExpression;
-}
-
-export type IFieldReferenceFn<T = any> = (
-  newAlias?: string
-) => IFieldReference<T>;
+import {IFieldReference, IFieldReferenceFn, ReferencedTable} from "../dbTypes";
 
 export class FieldReference<T> implements IFieldReference {
   public field: DBField<T>;
@@ -107,15 +94,6 @@ export class FieldReference<T> implements IFieldReference {
   protected hashPwFieldVal = (fldText: string): string => fldText;
   protected now = (): string => 'current_timestamp';
 }
-
-export type ReferencedTable<T> = {
-  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
-} & {
-  alias?: string;
-  tbl: DBTable<T>;
-  toSql: ToStringFn;
-  toReferenceSql: ToStringFn;
-};
 
 let FieldReferenceClass: typeof FieldReference = FieldReference;
 

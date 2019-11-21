@@ -2,10 +2,7 @@ import indentString from 'indent-string';
 import {
   BaseReferenceTable,
   createReferencedTable,
-  FieldReference,
-  IFieldReference,
-  IFieldReferenceFn,
-  ReferencedTable
+  FieldReference
 } from './sqlTableFieldReference';
 import {createDBTbl, DBTable} from '../dbModel';
 import {countNLines} from './utils';
@@ -16,7 +13,7 @@ import {
   transformFieldUpdatesToSql
 } from './SQLExpression';
 import {ToStringFn} from './sqlQuery';
-import {ITableDefinition} from '../dbTypes';
+import {IFieldReference, IFieldReferenceFn, ITableDefinition, ReferencedTable} from '../dbTypes';
 
 export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
