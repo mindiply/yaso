@@ -1,6 +1,6 @@
 {
   "name": "yaso",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Lightweight opinionated Postgres SQL ORM",
   "main": "lib/index.js",
   "scripts": {
