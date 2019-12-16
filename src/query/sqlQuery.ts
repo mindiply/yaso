@@ -5,7 +5,7 @@ import {
   ReferencedTable
 } from './sqlTableFieldReference';
 import indentString from 'indent-string';
-import {IJoin, join as joinFn, Join, JoinType} from './sqlJoin';
+import {join as joinFn, Join, JoinType} from './sqlJoin';
 import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
 import {countNLines, parenthesizeSql} from './utils';
 import {tbl} from './sqlTableQuery';
@@ -73,7 +73,107 @@ export interface IQryCallback {
 }
 
 type SelectFields = Array<IFieldReference | ISQLExpression>;
-type SelectFieldPrm = IFieldReferenceFn | ISQLExpression;
+type SelectFieldPrm<T> = IFieldReferenceFn<T> | ISQLExpression;
+
+interface IFieldsMemberFn<ReturnType> {
+  <T>(field: SelectFieldPrm<T>): ReturnType;
+  <T1, T2>([field1, field2]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>
+  ]): ReturnType;
+  <T1, T2, T3>([field1, field2, field3]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>
+  ]): ReturnType;
+  <T1, T2, T3, T4>([field1, field2, field3, field4]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>
+  ]): ReturnType;
+  <T1, T2, T3, T4, T5>([field1, field2, field3, field4, field5]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>
+  ]): ReturnType;
+  <T1, T2, T3, T4, T5, T6>([field1, field2, field3, field4, field5, field6]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8,
+    field9
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>,
+    SelectFieldPrm<T9>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8,
+    field9,
+    field10
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>,
+    SelectFieldPrm<T9>,
+    SelectFieldPrm<T10>
+  ]): ReturnType;
+}
 
 export class SelectQry extends BaseSqlExpression implements ISQLExpression {
   protected from: ReferencedTable<any>[];
@@ -102,7 +202,9 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
     // @ts-ignore
     cb(this, ...this.from);
 
-  public fields = (fields: SelectFieldPrm | SelectFieldPrm[]): SelectQry => {
+  public fields: IFieldsMemberFn<SelectQry> = (
+    fields: SelectFieldPrm<any> | SelectFieldPrm<any>[]
+  ) => {
     const flds = Array.isArray(fields) ? fields : [fields];
     this.selectFields = flds.map(fld =>
       typeof fld === 'function'
@@ -115,11 +217,11 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
     return this;
   };
 
-  public join = (
-    p1: IFieldReferenceFn | IJoin<any, any>,
-    p2: IFieldReferenceFn | IJoin<any, any>,
-    p3: JoinType | IFieldReferenceFn | IJoin<any, any> = JoinType.inner,
-    p4?: JoinType | IFieldReferenceFn,
+  public join = <T1, T2>(
+    p1: IFieldReferenceFn<T1> | ISQLExpression,
+    p2: IFieldReferenceFn<T1 | T2> | ISQLExpression,
+    p3: JoinType | IFieldReferenceFn<T1 | T2> | ISQLExpression = JoinType.inner,
+    p4?: JoinType | IFieldReferenceFn<T2>,
     p5?: JoinType
   ): SelectQry => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore

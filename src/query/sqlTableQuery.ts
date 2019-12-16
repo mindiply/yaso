@@ -22,7 +22,7 @@ export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
 };
 
-type SelectFieldRef<T> = keyof T | ISQLExpression;
+export type SelectFieldRef<T> = keyof T | ISQLExpression;
 
 interface ITableQryBaseParameters<T> {
   tbl: ReferencedTable<T>;
@@ -227,7 +227,6 @@ class InsertTableQuery<T> extends BaseWriteTableQuery<T> {
     const fldList: string[] = [];
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
-      console.log({fieldName, fieldValue});
       const fieldRef = ((this.refTbl as BaseReferenceTable)[
         fieldName
       ] as IFieldReferenceFn<T>)() as FieldReference<T>;

@@ -1,5 +1,6 @@
 import {IFieldReferenceFn} from './sqlTableFieldReference';
 import indentString from 'indent-string';
+import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
 
 export enum JoinType {
   inner = 'inner',
@@ -20,16 +21,16 @@ const sqlJoinByType = (joinType: JoinType): string => {
   throw new Error(`Unexpected join type: ${joinType}`);
 };
 
-export interface IJoin<T1 = any, T2 = any, T3 = any, T4 = any> {
+export interface IJoin<T1 = any, T2 = any, T3 = any, T4 = any>
+  extends ISQLExpression {
   type: JoinType;
   from: IFieldReferenceFn | IJoin<T1, T2>;
   to: IFieldReferenceFn | IJoin<T2, T3> | IJoin<T3, T4>;
   onFrom?: IFieldReferenceFn;
   onTo?: IFieldReferenceFn;
-  toSql: (nSpaces?: number) => string;
 }
 
-export class Join implements IJoin {
+export class Join extends BaseSqlExpression implements IJoin {
   public type: JoinType;
   public from: IFieldReferenceFn | IJoin;
   public to: IFieldReferenceFn | IJoin;
@@ -43,6 +44,7 @@ export class Join implements IJoin {
     p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) {
+    super();
     if (typeof p1 === 'function') {
       this.from = p1;
       if (typeof p2 === 'function') {
@@ -67,7 +69,7 @@ export class Join implements IJoin {
     }
   }
 
-  public toSql = (nSpaces = 0): string => {
+  public toSql = (): string => {
     if (typeof this.from === 'function') {
       if (typeof this.to === 'function') {
         const fromRef = (this.from as IFieldReferenceFn)();
@@ -84,47 +86,38 @@ export class Join implements IJoin {
         const from = fromRef.qryTbl.toSql();
         const fromFld = fromRef.toReferenceSql();
         const toRef = (this.onTo as IFieldReferenceFn)();
-        const toJoin = (this.to as IJoin).toSql(nSpaces + 4);
+        const toJoin = indentString((this.to as IJoin).toSql(), 4);
         const toFld = toRef.toReferenceSql();
-        return indentString(
-          `
+        return `
 ${from} ${sqlJoinByType(this.type)} (
   ${toJoin}
-) on ${fromFld} = ${toFld}`,
-          nSpaces + 2
-        );
+) on ${fromFld} = ${toFld}`;
       }
     } else {
       if (typeof this.to === 'function') {
-        const fromJoin = (this.from as IJoin).toSql(nSpaces + 4);
+        const fromJoin = indentString((this.from as IJoin).toSql(), 4);
         const fromRef = (this.onFrom as IFieldReferenceFn)();
         const fromFld = fromRef.toReferenceSql();
         const toRef = (this.to as IFieldReferenceFn)();
         const to = toRef.qryTbl.toSql();
         const toFld = toRef.toReferenceSql();
-        return indentString(
-          `
+        return `
 (
   ${fromJoin}
-) ${sqlJoinByType(this.type)} ${to} on ${fromFld} = ${toFld}`,
-          nSpaces + 2
-        );
+) ${sqlJoinByType(this.type)} ${to} on ${fromFld} = ${toFld}`;
       } else {
-        const fromJoin = (this.from as IJoin).toSql(nSpaces + 4);
+        const fromJoin = indentString((this.from as IJoin).toSql(), 4);
         const fromRef = (this.onFrom as IFieldReferenceFn)();
         const fromFld = fromRef.toReferenceSql();
-        const toJoin = (this.to as IJoin).toSql(nSpaces + 4);
+        const toJoin = indentString((this.to as IJoin).toSql(), 4);
         const toRef = (this.onTo as IFieldReferenceFn)();
         const toFld = toRef.toReferenceSql();
-        return indentString(
-          `
+        return `
 (
   ${fromJoin}
 ) ${sqlJoinByType(this.type)} (
   ${toJoin}
-) on ${fromFld} = ${toFld}`,
-          nSpaces + 2
-        );
+) on ${fromFld} = ${toFld}`;
       }
     }
   };

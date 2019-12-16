@@ -196,6 +196,7 @@ export type DataValue =
   | IFieldReferenceFn<Date>
   | IFieldReferenceFn<Uint8Array>
   | IFieldReferenceFn<Id>
+  | IFieldReferenceFn<AtomicDataValue>
   | INamedParameter;
 
 export function prm(name: string): NamedParameter {
