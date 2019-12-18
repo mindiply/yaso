@@ -9,8 +9,19 @@ const ccRE = /_cc$/i;
 const createdAtRE = /_created_at$/i;
 const updatedAtRE = /_updated_at$/i;
 
-const tableRegistryByName: Map<string, DBTable<any>> = new Map();
-const tableRegistryByDbName: Map<string, DBTable<any>> = new Map();
+const tableRegistryByName: Map<string, IDBTable<any>> = new Map();
+const tableRegistryByDbName: Map<string, IDBTable<any>> = new Map();
+
+export interface IDBField<T> extends ITableField<T> {
+  readonly name: keyof T;
+  dbName: string;
+  isEncrypted: boolean;
+  isHash: boolean;
+  isPwHash: boolean;
+  isCC: boolean;
+  isInsertTimestamp: boolean;
+  isUpdateTimestamp: boolean;
+}
 
 export class DBField<T> implements ITableField<T> {
   public readonly name: keyof T;
@@ -36,19 +47,37 @@ export class DBField<T> implements ITableField<T> {
   }
 }
 
-export class DBTable<DataType = any> implements ITable<DataType> {
+export interface IDBTable<DataType = any> extends ITable<DataType> {
+  name: string;
+  dbName: string;
+  hasCC: boolean;
+  hasInsertTimestamp: boolean;
+  hasUpdateTimestamp: boolean;
+  fields: IDBField<DataType>[];
+  ccField?: IDBField<DataType>;
+  insertTimestampField?: IDBField<DataType>;
+  updateTimestampField?: IDBField<DataType>;
+  getFieldByName: (
+    fieldName: keyof DataType
+  ) => ITableFieldDefinition<DataType> | undefined;
+  getFieldByDbName: (
+    fieldDbName: string
+  ) => ITableFieldDefinition<DataType> | undefined;
+}
+
+export class DBTable<DataType = any> implements IDBTable<DataType> {
   public readonly name: string;
   public readonly dbName: string;
   public readonly hasCC: boolean;
   public readonly hasInsertTimestamp: boolean;
   public readonly hasUpdateTimestamp: boolean;
-  public readonly fields: DBField<DataType>[];
-  public readonly ccField?: DBField<DataType>;
-  public readonly insertTimestampField?: DBField<DataType>;
-  public readonly updateTimestampField?: DBField<DataType>;
+  public readonly fields: IDBField<DataType>[];
+  public readonly ccField?: IDBField<DataType>;
+  public readonly insertTimestampField?: IDBField<DataType>;
+  public readonly updateTimestampField?: IDBField<DataType>;
 
-  protected readonly fieldsByDBName: Map<string, DBField<DataType>>;
-  protected readonly fieldsByName: Map<keyof DataType, DBField<DataType>>;
+  protected readonly fieldsByDBName: Map<string, IDBField<DataType>>;
+  protected readonly fieldsByName: Map<keyof DataType, IDBField<DataType>>;
 
   constructor(def: ITableDefinition<DataType>) {
     this.name = def.name;
@@ -79,8 +108,8 @@ export class DBTable<DataType = any> implements ITable<DataType> {
     if (this.hasUpdateTimestamp) {
       this.updateTimestampField = this.fields[updateTimestampIndex];
     }
-    tableRegistryByName.set(this.name, this);
-    tableRegistryByDbName.set(this.dbName, this);
+    tableRegistryByName.set(this.name, this as IDBTable<DataType>);
+    tableRegistryByDbName.set(this.dbName, this as IDBTable<DataType>);
   }
 
   public getFieldByName = (
@@ -96,11 +125,17 @@ export class DBTable<DataType = any> implements ITable<DataType> {
   };
 }
 
-export const createDBTbl = <T>(tblDef: ITableDefinition<T>): DBTable<T> => {
-  return new DBTable<T>(tblDef);
+export const createDBTbl = <T>(tblDef: ITableDefinition<T>): IDBTable<T> => {
+  const dbTable: IDBTable<T> = new DBTable<T>(tblDef);
+  tableRegistryByName.set(dbTable.name, dbTable);
+  tableRegistryByDbName.set(dbTable.dbName, dbTable);
+  return dbTable;
 };
 
-export function getDbTableByName<T>(tableName: string): DBTable<T> {
+export const isDBTable = <T>(obj: DBTable<T> | any): obj is IDBTable<T> =>
+  obj && obj instanceof DBTable;
+
+export function getDbTableByName<T>(tableName: string): IDBTable<T> {
   const tbl = tableRegistryByName.get(tableName);
   if (!tbl) {
     throw new Error('Table not in registry');
@@ -108,7 +143,7 @@ export function getDbTableByName<T>(tableName: string): DBTable<T> {
   return tbl;
 }
 
-export function getDbTableByDbName<T>(tableDbName: string): DBTable<T> {
+export function getDbTableByDbName<T>(tableDbName: string): IDBTable<T> {
   const tbl = tableRegistryByDbName.get(tableDbName);
   if (!tbl) {
     throw new Error('Table not in registry');

@@ -13,6 +13,7 @@ module.exports = {
   rules: {
     'prettier/prettier': 'error',
     '@typescript-eslint/interface-name-prefix': ['error', 'always'],
-    'no-unused-vars': ['error']
+    'no-unused-vars': ['error'],
+    "@typescript-eslint/no-use-before-define": ["error", { "functions": false, "classes": true }]
   }
 };

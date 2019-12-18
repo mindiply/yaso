@@ -6,7 +6,6 @@ export {
   or,
   equals,
   and,
-  ISQLExpression,
   isNull,
   isNotNull,
   add,
@@ -28,7 +27,8 @@ export {
   alias,
   list,
   sqlIn,
-  notIn
+  notIn,
+  orderBy
 } from './query/SQLExpression';
 
 export {
@@ -37,6 +37,7 @@ export {
   updateQuerySql
 } from './query/sqlTableQuery';
 export {selectFrom} from './query/sqlQuery';
-export {usePg} from './pgSQL';
+export {usePg} from './db/pgSQL';
 export {tblCCFields, Id, ITbl, IId} from './query/utils';
 export {tbl} from './query/sqlTableQuery';
+export {ISQLExpression} from './query/types';

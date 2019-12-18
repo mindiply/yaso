@@ -1,6 +1,6 @@
 import {
   ITableDefinition,
-  DBTable,
+  IDBTable,
   tbl,
   insertQuerySql,
   and,
@@ -13,8 +13,13 @@ import {
   tableSelectSql,
   count,
   alias,
-  updateQuerySql
+  updateQuerySql,
+  orderBy,
+  max,
+  createDBTbl,
+  getDbTableByDbName
 } from '../src';
+import {selectFrom} from '../src/query/sqlQuery';
 
 usePg();
 
@@ -56,7 +61,7 @@ describe('Testing table update queries', () => {
       }
     ]
   };
-  const tstDbTbl = new DBTable(tblDef);
+  const tstDbTbl = createDBTbl(tblDef);
   test('Basic update', () => {
     const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('newName')},
@@ -134,7 +139,7 @@ describe('Testing insert queries', () => {
       }
     ]
   };
-  const nupTbl = new DBTable(noUpdateTblDef);
+  const nupTbl = createDBTbl(noUpdateTblDef);
 
   test('Insert single field, no updates', () => {
     const expectedSql = `insert into nup (descr) values ($[fullName])`;
@@ -178,7 +183,7 @@ returning nup.descr as "description"`;
       }
     ]
   };
-  const upTbl = new DBTable(updateTblDef);
+  const upTbl = createDBTbl(updateTblDef);
 
   test('Insert multiple fields, no updates', () => {
     const expectedSql = `insert into nup (
@@ -293,6 +298,32 @@ where
     }));
     expect(sql).toBe(expectedSql);
   });
+
+  test('Subquery on same table and auto alias', () => {
+    const expectedSql = `select
+  tst.tst_change_count as "cc",
+  tst.tst_id as "id",
+  tst.tst_name as "name",
+  tst.tst_created_at as "when"
+from tst
+where
+  tst.tst_id = (
+    select max(tst2.tst_id)
+    from tst as "tst2"
+    where tst2.tst_name = $[name]
+  )`;
+    const sql = qryTbl
+      .selectQry(tst => ({
+        where: equals(
+          tst.id,
+          selectFrom(getDbTableByDbName<ITest>('tst'), (qry, tst2) => {
+            qry.fields(max(tst2.id)).where(equals(tst2.name, prm('name')));
+          })
+        )
+      }))
+      .toSql();
+    expect(sql).toBe(expectedSql);
+  });
 });
 
 describe('Select, insert and update with encrypted and hashed fields', () => {
@@ -336,10 +367,12 @@ describe('Select, insert and update with encrypted and hashed fields', () => {
   test('select encrypted and where on hashed', () => {
     const expectdSql = `select case when enc.name is not null then pgp_sym_decrypt(decode(enc.name, 'hex'), $[encryptionKey]) else null end as "name"
 from enc
-where enc.pw_hash = crypt($[pw], enc.pw_hash)`;
+where enc.pw_hash = crypt($[pw], enc.pw_hash)
+order by enc.name`;
     const sql = tstQry.selectQrySql({
       fields: ['name'],
-      where: equals(tstQry.pwHash, tstQry.pwHash().readValueToSql(prm('pw')))
+      where: equals(tstQry.pwHash, tstQry.pwHash().readValueToSql(prm('pw'))),
+      orderBy: orderBy({field: tstQry.name})
     });
     expect(sql).toBe(expectdSql);
   });

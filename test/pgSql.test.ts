@@ -1,7 +1,6 @@
 import {
   selectFrom,
   ITableDefinition,
-  DBTable,
   and,
   equals,
   moreThan,
@@ -10,7 +9,9 @@ import {
   tbl,
   usePg,
   min,
-  alias
+  alias,
+  rawSql,
+  createDBTbl
 } from '../src';
 
 usePg();
@@ -40,7 +41,7 @@ describe('Basic select queries', () => {
     name: string;
     cc: number;
   }
-  const tstTbl = new DBTable<ITst>(tblDef);
+  const tstTbl = createDBTbl(tblDef);
 
   test('should be a select *', () => {
     const sql = selectFrom(tstTbl).toString();
@@ -101,7 +102,8 @@ where
   and (
     t1.tst_name = 'Paolo'
     or t1.tst_id > 20
-  )`;
+  )
+order by t1.tst_id desc`;
     const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {
       qry
         .fields(t1._id)
@@ -110,7 +112,8 @@ where
             equals(t1._id, prm('_id')),
             or([equals(t1.name, 'Paolo'), moreThan(t1._id, 20)])
           ])
-        );
+        )
+        .orderBy([{field: t1._id, isDesc: true}]);
     }).toString();
     expect(sql).toBe(expectedSql);
   });
@@ -131,7 +134,10 @@ where
   and (
     t1.tst_name = 'Paolo'
     or t1.tst_id > 20
-  )`;
+  )
+order by
+  t1.tst_id,
+  "sameNameId" desc`;
     const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {
       qry
         .fields([
@@ -152,9 +158,12 @@ where
             equals(t1._id, prm('_id')),
             or([equals(t1.name, 'Paolo'), moreThan(t1._id, 20)])
           ])
-        );
+        )
+        .orderBy([
+          {field: t1._id},
+          {field: rawSql('"sameNameId"', true), isDesc: true}
+        ]);
     }).toString();
-    console.log(sql);
     expect(sql).toBe(expectedSql);
   });
 });

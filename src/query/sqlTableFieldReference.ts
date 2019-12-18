@@ -1,27 +1,25 @@
-import {DBField, DBTable} from '../dbModel';
-import {ISQLExpression, rawSql} from './SQLExpression';
-import {ToStringFn} from './sqlQuery';
-
-export interface IFieldReference<T = any> extends ISQLExpression {
-  field: DBField<T>;
-  qryTbl: ReferencedTable<T>;
-  toSelectSql: () => string;
-  toReferenceSql: () => string;
-  toUpdateFieldSql: (val: ISQLExpression) => string;
-  readValueToSql: (val: ISQLExpression) => ISQLExpression;
-  writeValueToSQL: (val: ISQLExpression) => string | ISQLExpression;
-}
-
-export type IFieldReferenceFn<T = any> = (
-  newAlias?: string
-) => IFieldReference<T>;
+import {IDBField, IDBTable} from '../dbModel';
+import {
+  FormattedSqlValueExpression,
+  QueryContext,
+  rawSql
+} from './SQLExpression';
+import {
+  IFieldReference,
+  IFieldReferenceFn,
+  IQueryContext,
+  ISQLExpression,
+  ReferencedTable,
+  ToStringFn
+} from './types';
+import {dbDialect} from '../db';
 
 export class FieldReference<T> implements IFieldReference {
-  public field: DBField<T>;
+  public field: IDBField<T>;
   public qryTbl: ReferencedTable<T>;
   protected _alias?: string;
 
-  constructor(qryTbl: ReferencedTable<T>, field: DBField<T>, alias?: string) {
+  constructor(qryTbl: ReferencedTable<T>, field: IDBField<T>, alias?: string) {
     this.field = field;
     this.qryTbl = qryTbl;
     if (alias) {
@@ -35,34 +33,33 @@ export class FieldReference<T> implements IFieldReference {
 
   public isSimpleValue = () => true;
 
-  public toSql = () => this.toReferenceSql();
+  public toSql = (qryContext: IQueryContext = new QueryContext()) =>
+    this.toReferenceSql(qryContext);
 
-  public toSelectSql = (): string => {
-    return `${this.readValueToSql().toSql()} as "${this.alias}"`;
+  public toSelectSql = (qryContext: IQueryContext): string => {
+    return `${this.readValueToSql().toSql(qryContext)} as "${this.alias}"`;
   };
 
-  public toReferenceSql = (): string =>
-    `${this.qryTbl.toReferenceSql()}.${this.field.dbName}`;
+  public toReferenceSql = (qryContext: IQueryContext): string =>
+    `${this.qryTbl.toReferenceSql(qryContext)}.${this.field.dbName}`;
 
   public toInsertSqlField = (): string => this.field.dbName;
 
   public readValueToSql = (value?: ISQLExpression): ISQLExpression => {
     const {isEncrypted, isPwHash, isHash} = this.field;
-    const strVal = value ? value.toSql() : this.toReferenceSql();
-
     return isEncrypted
-      ? rawSql(this.decryptField(strVal), true)
+      ? dbDialect().decryptField(value || this)
       : isHash
-      ? rawSql(this.hashField(strVal), true)
+      ? dbDialect().hashField(value || this)
       : isPwHash
-      ? rawSql(this.hashPwFieldVal(strVal), true)
-      : rawSql(strVal);
+      ? dbDialect().hashPwFieldVal(value || this, this)
+      : value || this;
   };
 
   public writeValueToSQL = (
     value: ISQLExpression | undefined,
     isInsert = false
-  ): string => {
+  ): ISQLExpression => {
     const {
       isCC,
       isEncrypted,
@@ -71,86 +68,69 @@ export class FieldReference<T> implements IFieldReference {
       isHash,
       isPwHash
     } = this.field;
-    const strVal = value ? value.toSql() : `''`;
     return isEncrypted
       ? value
-        ? this.encryptField(strVal)
-        : 'NULL'
+        ? dbDialect().encryptField(value)
+        : rawSql('NULL')
       : isHash
       ? value
-        ? this.hashField(strVal)
-        : 'NULL'
+        ? dbDialect().hashField(value)
+        : rawSql('NULL')
       : isPwHash
       ? value
-        ? this.hashPwField(strVal)
-        : 'NULL'
+        ? dbDialect().hashPwField(value)
+        : rawSql('NULL')
       : isCC && !value
       ? isInsert
-        ? '0'
-        : `${this.field.dbName} + 1`
+        ? rawSql('0')
+        : rawSql(`${this.field.dbName} + 1`)
       : ((isInsertTimestamp && isInsert) || isUpdateTimestamp) && !value
-      ? this.now()
-      : strVal;
+      ? dbDialect().now()
+      : value || this;
   };
 
-  public fieldReferenceSql = (): string =>
-    `${this.qryTbl.alias}.${this.field.dbName}`;
+  public fieldReferenceSql = (qryContext: IQueryContext): string =>
+    `${this.qryTbl.toReferenceSql(qryContext)}.${this.field.dbName}`;
 
-  public toUpdateFieldSql = (value: ISQLExpression): string => {
-    return `${this.field.dbName} = ${this.writeValueToSQL(value)}`;
+  public toUpdateFieldSql = (value: ISQLExpression): ISQLExpression => {
+    return new FormattedSqlValueExpression(updateFieldFormatFn, [
+      rawSql(this.field.dbName),
+      this.writeValueToSQL(value)
+    ]);
   };
-
-  protected encryptField = (fldText: string): string => fldText;
-  protected decryptField = (fldText: string): string => fldText;
-  protected hashField = (fldText: string): string => fldText;
-  protected hashPwField = (fldText: string): string => fldText;
-  protected hashPwFieldVal = (fldText: string): string => fldText;
-  protected now = (): string => 'current_timestamp';
 }
 
-export type ReferencedTable<T> = {
-  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
-} & {
-  alias?: string;
-  tbl: DBTable<T>;
-  toSql: ToStringFn;
-  toReferenceSql: ToStringFn;
-};
-
-let FieldReferenceClass: typeof FieldReference = FieldReference;
-
-export function setFieldReferenceClass(fieldRefClass: typeof FieldReference) {
-  FieldReferenceClass = fieldRefClass;
+function updateFieldFormatFn(fieldStr?: string, valueStr?: string): string {
+  return `${fieldStr} = ${valueStr}`;
 }
 
 export function createFieldReferenceFn<T>(
   qryTbl: ReferencedTable<T>,
-  field: DBField<T>,
+  field: IDBField<T>,
   alias?: string
 ): IFieldReferenceFn<T> {
-  const ref: IFieldReference<T> = new FieldReferenceClass(qryTbl, field);
-  if (alias) {
-    ref.alias = alias;
-  }
-  return (newAlias?: string): IFieldReference<T> => {
-    if (newAlias) {
-      ref.alias = newAlias;
-    }
+  const ref: IFieldReference<T> = new FieldReference(qryTbl, field, alias);
+  return (): IFieldReference<T> => {
     return ref;
   };
 }
 
-export class BaseReferenceTable<T = any> {
+interface IToBooleanFn {
+  (): boolean;
+}
+
+export class BaseReferenceTable<T = any> implements ISQLExpression {
   [fieldname: string]:
     | IFieldReferenceFn
-    | DBTable<T>
+    | IDBTable<T>
     | string
     | undefined
-    | ToStringFn;
-  public tbl: DBTable<T>;
+    | ToStringFn
+    | IToBooleanFn;
+  public tbl: IDBTable<T>;
   public alias?: string;
 
-  constructor(tbl: DBTable<T>, alias?: string) {
+  constructor(tbl: IDBTable<T>, alias?: string) {
     this.tbl = tbl;
     if (alias) {
       this.alias = alias;
@@ -163,14 +143,30 @@ export class BaseReferenceTable<T = any> {
     });
   }
 
-  public toSql = (): string =>
-    `${this.tbl.dbName}${this.alias ? ` as "${this.alias}"` : ''}`;
+  public toSql = (qryContext: IQueryContext = new QueryContext()): string => {
+    const aliasToUse = this.aliasToUse(qryContext);
+    return `${this.tbl.dbName}${
+      aliasToUse !== this.tbl.dbName ? ` as "${aliasToUse}"` : ''
+    }`;
+  };
 
-  public toReferenceSql = (): string => this.alias || this.tbl.dbName;
+  public toReferenceSql = (qryContext: IQueryContext): string =>
+    this.aliasToUse(qryContext);
+
+  public isSimpleValue = () => true;
+
+  protected aliasToUse = (qryContext: IQueryContext): string => {
+    const queryContext = qryContext || new QueryContext();
+    let contextAlias = queryContext.tableRefAlias(this as ReferencedTable<T>);
+    if (!contextAlias) {
+      contextAlias = queryContext.addTable(this as ReferencedTable<T>);
+    }
+    return contextAlias;
+  };
 }
 
 export function createReferencedTable<T>(
-  dbTable: DBTable<T>,
+  dbTable: IDBTable<T>,
   alias?: string
 ): ReferencedTable<T> {
   return new BaseReferenceTable(dbTable, alias) as ReferencedTable<T>;

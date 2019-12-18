@@ -1,62 +1,23 @@
-import {DBTable} from '../dbModel';
+import {IDBTable} from '../dbModel';
+import indentString from 'indent-string';
+import {BaseSqlExpression, join, orderBy, QueryContext} from './SQLExpression';
+import {countNLines, parenthesizeSql} from './utils';
+import {tbl} from './sqlTableQuery';
 import {
   IFieldReference,
   IFieldReferenceFn,
+  IJoin,
+  IOrderByFn,
+  IQueryContext,
+  ISQLExpression,
+  ISQLOrderByExpression,
+  ISQLOrderByField,
+  JoinType,
   ReferencedTable
-} from './sqlTableFieldReference';
-import indentString from 'indent-string';
-import {join as joinFn, Join, JoinType} from './sqlJoin';
-import {BaseSqlExpression, ISQLExpression} from './SQLExpression';
-import {countNLines, parenthesizeSql} from './utils';
-import {tbl} from './sqlTableQuery';
+} from './types';
+import {BaseReferenceTable} from './sqlTableFieldReference';
 
-export interface IQueryContext {
-  addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;
-}
-
-export class QueryContext implements IQueryContext {
-  protected aliases: Map<string, ReferencedTable<any>>;
-  protected tables: Map<string, Map<string, ReferencedTable<any>>>;
-  protected counter: number;
-
-  constructor() {
-    this.aliases = new Map();
-    this.tables = new Map();
-    this.counter = 1;
-  }
-
-  protected addTableRef = <T>(tableRef: ReferencedTable<T>, alias: string) => {
-    this.aliases.set(alias, tableRef);
-    const dbTblMap = this.tables.get(tableRef.tbl.dbName) || new Map();
-    dbTblMap.set(alias, tableRef);
-  };
-
-  protected findAvailableAlias<T>(tbl: ReferencedTable<T>): string {
-    const tblDbName = tbl.tbl.dbName;
-    let alias = tblDbName;
-    for (
-      ;
-      this.aliases.has(alias);
-      alias = `${tblDbName}${String(this.counter)}`, this.counter++
-    ) {}
-    return alias;
-  }
-
-  public addTable = <T>(tbl: ReferencedTable<T>, alias?: string): string => {
-    if (alias) {
-      if (this.aliases.has(alias)) {
-        throw new Error('Explicit alias is already user');
-      }
-    }
-    const aliasToUse = alias || this.findAvailableAlias(tbl);
-    this.addTableRef(tbl, aliasToUse);
-    return aliasToUse;
-  };
-}
-
-export type ToStringFn = () => string;
-
-type SelectQryTablePrm<T> = DBTable<T> | ReferencedTable<T>;
+type SelectQryTablePrm<T> = IDBTable<T> | ReferencedTable<T>;
 export interface IQryCallback {
   <T>(qry: SelectQry, t1: T): void;
   <T1, T2>(qry: SelectQry, t1: T1, t2: T2): void;
@@ -179,22 +140,19 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
   protected from: ReferencedTable<any>[];
   protected selectFields?: SelectFields;
   protected rootWhere?: ISQLExpression;
-  protected joins?: Join;
+  protected joins?: IJoin;
+  protected orderByExpression?: ISQLOrderByExpression;
 
-  constructor(
-    tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[],
-    context?: IQueryContext
-  ) {
+  constructor(tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[]) {
     super();
     if (!tables) {
       throw new Error('Expected at least one table');
     }
     this.from = (Array.isArray(tables) ? tables : [tables]).map(table =>
-      table instanceof DBTable ? tbl(table) : table
+      table instanceof BaseReferenceTable
+        ? (table as ReferencedTable<any>)
+        : tbl(table as IDBTable)
     );
-    if (context) {
-      this.queryContext = context;
-    }
   }
 
   public executeCallback = (cb: IQryCallback): void =>
@@ -204,16 +162,20 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
 
   public fields: IFieldsMemberFn<SelectQry> = (
     fields: SelectFieldPrm<any> | SelectFieldPrm<any>[]
-  ) => {
+  ): SelectQry => {
     const flds = Array.isArray(fields) ? fields : [fields];
     this.selectFields = flds.map(fld =>
       typeof fld === 'function'
         ? (fld() as IFieldReference)
         : (fld as ISQLExpression)
     );
-    this.selectFields.forEach(
-      field => (field.queryContext = this.queryContext)
-    );
+    return this;
+  };
+
+  public orderBy: IOrderByFn<SelectQry> = (
+    fields: ISQLOrderByField | ISQLOrderByField[]
+  ) => {
+    this.orderByExpression = orderBy(fields);
     return this;
   };
 
@@ -226,91 +188,83 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
   ): SelectQry => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
-    this.joins = joinFn(p1, p2!, p3!, p4, p5);
+    this.joins = join(p1, p2!, p3!, p4, p5);
     return this;
   };
 
-  public where = (rootCond: ISQLExpression) => {
+  public where = (rootCond: ISQLExpression): SelectQry => {
     this.rootWhere = rootCond;
-    this.rootWhere.queryContext = this.queryContext;
+    return this;
   };
 
-  public toSelectAllSql = () => {
+  public toString = (context?: IQueryContext): string => {
+    const queryContext = context || new QueryContext();
+    this.from.forEach(fromTbl => {
+      queryContext.addTable(fromTbl);
+    });
+    const fromSql = this.fromSql(queryContext);
+    const fieldsSql = this.selectFields
+      ? this.selectFields
+          .map(selectField => {
+            return (selectField as IFieldReference).toSelectSql
+              ? (selectField as IFieldReference).toSelectSql(queryContext)
+              : selectField.isSimpleValue()
+              ? selectField.toSql(queryContext)
+              : parenthesizeSql(selectField.toSql(queryContext));
+          })
+          .join(',\n')
+      : this.toSelectAllSql(queryContext);
+    const whereSql = this.rootWhere
+      ? this.rootWhere.toSql(queryContext)
+      : undefined;
+    const orderBySql = this.orderByExpression
+      ? this.orderByExpression.toSql(queryContext)
+      : '';
+    return `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
+      fieldsSql,
+      countNLines(fieldsSql) > 1 ? 2 : 1
+    )}
+from${fromSql}${
+      whereSql
+        ? `
+where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
+            whereSql,
+            countNLines(whereSql) > 1 ? 2 : 1
+          )}`
+        : ''
+    }${orderBySql ? `\n${orderBySql}` : ''}`;
+  };
+
+  protected toSelectAllSql = (qryContext: IQueryContext) => {
     const fields = Object.values(this.from)
       .map(selectTable =>
         selectTable.tbl.fields.map(field =>
           (selectTable[
             field.name as string
-          ] as IFieldReferenceFn)().toSelectSql()
+          ] as IFieldReferenceFn)().toSelectSql(qryContext)
         )
       )
       .reduce((allFields, newFields) => allFields.concat(newFields), []);
     return fields.join(',\n');
   };
 
-  public toString = (nSpaces = 0): string => {
-    const fieldsSql = this.selectFields
-      ? this.selectFields
-          .map(selectField => {
-            return (selectField as IFieldReference).toSelectSql
-              ? (selectField as IFieldReference).toSelectSql()
-              : selectField.isSimpleValue()
-              ? selectField.toSql()
-              : parenthesizeSql(selectField.toSql());
-          })
-          .join(',\n')
-      : this.toSelectAllSql();
-    const whereSql = this.rootWhere ? this.rootWhere.toSql() : undefined;
-    return indentString(
-      `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
-        fieldsSql,
-        countNLines(fieldsSql) > 1 ? 2 : 1
-      )}
-from${this.fromSql()}${
-        whereSql
-          ? `
-where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
-              whereSql,
-              countNLines(whereSql) > 1 ? 2 : 1
-            )}`
-          : ''
-      }`,
-      nSpaces
-    );
-  };
-
-  protected fromSql = (): string => {
+  protected fromSql = (qryContext: IQueryContext): string => {
     if (this.joins) {
-      return this.joins.toSql();
+      return this.joins.toSql(qryContext);
     }
     const tables = Object.values(this.from);
     if (tables.length === 1) {
-      return ` ${tables[0].toSql()}`;
+      return ` ${tables[0].toSql(qryContext)}`;
     }
     return (
       '\n' +
       Object.values(this.from)
-        .map(qryTbl => indentString(qryTbl.toSql(), 2))
+        .map(qryTbl => indentString(qryTbl.toSql(qryContext), 2))
         .join(',\n')
     );
   };
 
-  public toSql = () => this.toString();
-
-  set queryContext(context: IQueryContext) {
-    super.queryContext = context;
-    this.propagateContext();
-  }
-
-  protected propagateContext = () => {
-    this.selectFields &&
-      this.selectFields.forEach(
-        field => (field.queryContext = this.queryContext)
-      );
-    if (this.rootWhere) {
-      this.rootWhere.queryContext = this.queryContext;
-    }
-  };
+  public toSql = (qryContext?: IQueryContext) => this.toString(qryContext);
 }
 
 export function selectFrom<T>(
