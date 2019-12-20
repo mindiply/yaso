@@ -24,6 +24,9 @@ to be passed onto the preferred db connection library
 - Generation of encrypted and hash fields in where clauses were within
 brackets
 - Removed encode function with pgcrypt for password hashes
+- Changed the type definitions for join to instantiate correctly
+when used
+
 
 ## [0.0.4] - 2019-10-31
 
