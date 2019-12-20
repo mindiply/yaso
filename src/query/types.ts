@@ -1,15 +1,41 @@
 import {Id} from './utils';
 import {IDBField, IDBTable} from '../dbModel';
 
-export type ToStringFn = (qryContext: IQueryContext) => string;
-export type ReferencedTable<T> = {
-  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
-} & {
+/**
+ * the .toSql function signature (or any toXXXSql function), which
+ * accepts an optional query context object to determine the alias
+ * of the table the sql expression belongs to.
+ */
+export interface IToSqlFn {
+  (qryContext?: IQueryContext): string;
+}
+
+/**
+ * A ISQLExpression is the building block of SQL clauses and
+ * statements.
+ *
+ * The main function is toSQL which provides the string representation
+ * of the expression. Some expressions will throw an error if they need
+ * an initialized query context and it is not provided.
+ */
+export interface ISQLExpression {
+  toSql: IToSqlFn;
+  isSimpleValue: () => boolean;
+}
+
+/**
+ * Represents a table used in a from clause of a sql statement.
+ */
+export interface IFromTable<T> extends ISQLExpression {
   alias?: string;
   tbl: IDBTable<T>;
-  toSql: ToStringFn;
-  toReferenceSql: ToStringFn;
-};
+  toReferenceSql: IToSqlFn;
+}
+
+export type ReferencedTable<T> = {
+  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
+} &
+  IFromTable<T>;
 
 /**
  * A query context is used provide unique aliases to the
@@ -30,12 +56,6 @@ export interface IQueryContext {
    * @param tbl
    */
   tableRefAlias: <T>(tbl: ReferencedTable<T>) => null | string;
-}
-
-export interface ISQLExpression {
-  toSql: (qryContext?: IQueryContext) => string;
-  isSimpleValue: () => boolean;
-  root?: ISQLExpression;
 }
 
 export interface ISqlAliasExpression extends ISQLExpression {
@@ -115,7 +135,7 @@ export interface IFieldReference<T = any> extends ISQLExpression {
   readonly alias: string;
   field: IDBField<T>;
   qryTbl: ReferencedTable<T>;
-  toSelectSql: (qryContext: IQueryContext) => string;
+  toSelectSql: () => ISQLExpression;
 
   /**
    * Just refer to the field using the table alias and the field
@@ -123,10 +143,10 @@ export interface IFieldReference<T = any> extends ISQLExpression {
    * same as toSql()
    * @param qryContext
    */
-  toReferenceSql: (qryContext: IQueryContext) => string;
+  toReferenceSql: () => ISQLExpression;
   toUpdateFieldSql: (val: ISQLExpression) => ISQLExpression;
-  readValueToSql: (val: ISQLExpression) => ISQLExpression;
-  writeValueToSQL: (val: ISQLExpression) => ISQLExpression;
+  readValueToSql: (val?: ISQLExpression) => ISQLExpression;
+  writeValueToSQL: (val?: ISQLExpression) => ISQLExpression;
 }
 
 export type IFieldReferenceFn<T = any> = (
@@ -293,3 +313,12 @@ export type DataValue =
 export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
 };
+
+export interface ISelectClause extends ISQLExpression {
+  selectFields: ISQLExpression[];
+}
+
+export interface IFromClause extends ISQLExpression {
+  tables: IFromTable<any>[];
+  joins: IJoin[];
+}

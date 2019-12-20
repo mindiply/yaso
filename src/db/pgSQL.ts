@@ -1,7 +1,7 @@
-import {FieldReference} from '../query/sqlTableFieldReference';
 import {FormattedSqlValueExpression, rawSql} from '../query/SQLExpression';
-import {IFieldReference, IQueryContext, ISQLExpression} from '../query/types';
+import {IFieldReference, ISQLExpression} from '../query/types';
 import {IDBDialect, setDbDialect} from './index';
+import {ISelectStatement} from '../query/statements';
 
 const encryptFormatFn = (fldText = '') =>
   `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;
@@ -45,23 +45,16 @@ export class PgDialect implements IDBDialect {
   public namedParameter = (prmName: string): string => `$[${prmName}]`;
 
   public now = () => rawSql('current_timestamp');
-}
 
-export class PGFieldReference<T> extends FieldReference<T> {
-  protected encryptField = (fldText: string): string =>
-    `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;
-
-  protected decryptField = (fldText: string): string =>
-    `case when ${fldText} is not null then pgp_sym_decrypt(decode(${fldText}, 'hex'), $[encryptionKey]) else null end`;
-
-  protected hashField = (fldText: string): string =>
-    `encode(digest(${fldText}, 'sha256'), 'hex')`;
-  protected hashPwField = (fldText: string): string =>
-    `crypt(${fldText}, gen_salt('md5'))`;
-  protected hashPwFieldVal = (
-    qryContext: IQueryContext,
-    fldText: string
-  ): string => `crypt(${fldText}, ${this.toReferenceSql(qryContext)})`;
+  toSelectSql = (selectStatement: ISelectStatement): ISelectStatement => {
+    if (selectStatement.maxRows && selectStatement.maxRows > 0) {
+      selectStatement.addClause(
+        'limitBy',
+        rawSql(`limit ${selectStatement.maxRows}`)
+      );
+    }
+    return selectStatement;
+  };
 }
 
 export const usePg = () => {

@@ -10,9 +10,42 @@ import {
   IQueryContext,
   ISQLExpression,
   ReferencedTable,
-  ToStringFn
+  IToSqlFn
 } from './types';
 import {dbDialect} from '../db';
+
+class FieldSelectSqlExpression<T> implements ISQLExpression {
+  private field: IFieldReference<T>;
+
+  constructor(field: IFieldReference<T>) {
+    this.field = field;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = (qryContext?: IQueryContext) => {
+    return `${this.field.readValueToSql().toSql(qryContext)} as "${
+      this.field.alias
+    }"`;
+  };
+}
+
+class FieldToReferenceSqlExpression<T> implements ISQLExpression {
+  private field: FieldReference<T>;
+
+  constructor(field: FieldReference<T>) {
+    this.field = field;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = (context?: IQueryContext) => {
+    const qryContext = context || new QueryContext();
+    return `${this.field.qryTbl.toReferenceSql(qryContext)}.${
+      this.field.field.dbName
+    }`;
+  };
+}
 
 export class FieldReference<T> implements IFieldReference {
   public field: IDBField<T>;
@@ -34,16 +67,14 @@ export class FieldReference<T> implements IFieldReference {
   public isSimpleValue = () => true;
 
   public toSql = (qryContext: IQueryContext = new QueryContext()) =>
-    this.toReferenceSql(qryContext);
+    this.toReferenceSql().toSql(qryContext);
 
-  public toSelectSql = (qryContext: IQueryContext): string => {
-    return `${this.readValueToSql().toSql(qryContext)} as "${this.alias}"`;
+  public toSelectSql = (): ISQLExpression => {
+    return new FieldSelectSqlExpression(this);
   };
 
-  public toReferenceSql = (qryContext: IQueryContext): string =>
-    `${this.qryTbl.toReferenceSql(qryContext)}.${this.field.dbName}`;
-
-  public toInsertSqlField = (): string => this.field.dbName;
+  public toReferenceSql = (): ISQLExpression =>
+    new FieldToReferenceSqlExpression(this);
 
   public readValueToSql = (value?: ISQLExpression): ISQLExpression => {
     const {isEncrypted, isPwHash, isHash} = this.field;
@@ -89,9 +120,6 @@ export class FieldReference<T> implements IFieldReference {
       : value || this;
   };
 
-  public fieldReferenceSql = (qryContext: IQueryContext): string =>
-    `${this.qryTbl.toReferenceSql(qryContext)}.${this.field.dbName}`;
-
   public toUpdateFieldSql = (value: ISQLExpression): ISQLExpression => {
     return new FormattedSqlValueExpression(updateFieldFormatFn, [
       rawSql(this.field.dbName),
@@ -125,7 +153,7 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
     | IDBTable<T>
     | string
     | undefined
-    | ToStringFn
+    | IToSqlFn
     | IToBooleanFn;
   public tbl: IDBTable<T>;
   public alias?: string;

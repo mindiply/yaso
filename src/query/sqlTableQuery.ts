@@ -16,7 +16,7 @@ import {
   ISQLOrderByExpression,
   ReferencedTable,
   TableFieldUpdates,
-  ToStringFn
+  IToSqlFn
 } from './types';
 
 export type SelectFieldRef<T> = keyof T | ISQLExpression;
@@ -392,7 +392,7 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
     | IDBTable<T>
     | string
     | undefined
-    | ToStringFn
+    | IToSqlFn
     | MemberFn;
 
   public insertQry = (

@@ -1,16 +1,19 @@
-import {parenthesizeSql} from './utils';
+import {countNLines, parenthesizeSql} from './utils';
 import indentString from 'indent-string';
 import {
   AggregateOperator,
   BinaryComparator,
   DataValue,
   IFieldReferenceFn,
+  IFromClause,
+  IFromTable,
   IInNotInStatement,
   IJoin,
   INamedParameter,
   InNotInOperator,
   IOrderByFn,
   IQueryContext,
+  ISelectClause,
   ISqlAggregateOperator,
   ISqlAliasExpression,
   ISqlBinaryComparison,
@@ -856,3 +859,56 @@ export class FormattedSqlValueExpression extends BaseSqlExpression
     return this.formattingFunction(...valExpressions);
   };
 }
+
+class SelectClause implements ISelectClause {
+  public selectFields: ISQLExpression[];
+
+  constructor(fields: ISQLExpression[] = []) {
+    this.selectFields = fields;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    const fieldsSql = this.selectFields
+      .map(field => field.toSql(qryContext))
+      .join('\n');
+    return `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
+      fieldsSql,
+      countNLines(fieldsSql) > 1 ? 2 : 1
+    )}`;
+  };
+}
+
+export const selectClause = (fields?: ISQLExpression[]): ISelectClause =>
+  new SelectClause(fields);
+
+export function isSelectClause(obj: any): obj is ISQLExpression {
+  return obj && obj instanceof SelectClause ? true : false;
+}
+
+class FromClause implements IFromClause {
+  public tables: IFromTable<any>[];
+  public joins: IJoin[];
+
+  constructor(tables: IFromTable<any>[] = [], joins: IJoin[] = []) {
+    this.tables = tables;
+    this.joins = joins;
+  }
+
+  isSimpleValue = () => true;
+
+  toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    if (this.tables.length === 0 && this.joins.length === 0) {
+      return '';
+    }
+    const fromLines = this.joins.map(fromJoin => fromJoin.toSql(qryContext));
+    fromLines.push(...this.tables.map(table => table.toSql(qryContext)));
+    const tablesSql = fromLines.join(',\n');
+  };
+}
+
+export const fromClause = (
+  tables: IFromTable<any>[] = [],
+  joins: IJoin[] = []
+) => new FromClause(tables, joins);

@@ -1,5 +1,6 @@
 import {IFieldReference, ISQLExpression} from '../query/types';
 import {SQLValue} from '../query/SQLExpression';
+import {ISelectStatement} from '../query/statements';
 
 /**
  * An IDBDialect object provides functions that specialize the
@@ -16,6 +17,7 @@ export interface IDBDialect {
   ) => ISQLExpression;
   now: () => ISQLExpression;
   namedParameter: (parameterName: string) => string;
+  toSelectSql: (selectStatement: ISelectStatement) => ISelectStatement;
 }
 
 class NoDialect implements IDBDialect {
@@ -27,6 +29,8 @@ class NoDialect implements IDBDialect {
     valueExpression;
   now = () => new SQLValue('now');
   namedParameter = (name: string) => name;
+  toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
+    selectStatement;
 }
 
 let currentDialect: IDBDialect = new NoDialect();
