@@ -682,19 +682,19 @@ export class Join extends BaseSqlExpression implements IJoin {
           qryContext.addTable(toRef.qryTbl);
         }
         const from = fromRef.qryTbl.toSql(qryContext);
-        const fromFld = fromRef.toReferenceSql(qryContext);
+        const fromFld = fromRef.toReferenceSql().toSql(qryContext);
         const to = toRef.qryTbl.toSql(qryContext);
-        const toFld = toRef.toReferenceSql(qryContext);
+        const toFld = toRef.toReferenceSql().toSql(qryContext);
         return ` ${from} ${sqlJoinByType(
           this.type
         )} ${to} on ${fromFld} = ${toFld}`;
       } else {
         const fromRef = (this.from as IFieldReferenceFn)();
         const from = fromRef.qryTbl.toSql(qryContext);
-        const fromFld = fromRef.toReferenceSql(qryContext);
+        const fromFld = fromRef.toReferenceSql().toSql(qryContext);
         const toRef = (this.onTo as IFieldReferenceFn)();
         const toJoin = indentString((this.to as IJoin).toSql(qryContext), 4);
-        const toFld = toRef.toReferenceSql(qryContext);
+        const toFld = toRef.toReferenceSql().toSql(qryContext);
         return `
 ${from} ${sqlJoinByType(this.type)} (
   ${toJoin}
@@ -707,13 +707,13 @@ ${from} ${sqlJoinByType(this.type)} (
           4
         );
         const fromRef = (this.onFrom as IFieldReferenceFn)();
-        const fromFld = fromRef.toReferenceSql(qryContext);
+        const fromFld = fromRef.toReferenceSql().toSql(qryContext);
         const toRef = (this.to as IFieldReferenceFn)();
         if (!context) {
           qryContext.addTable(toRef.qryTbl);
         }
         const to = toRef.qryTbl.toSql(qryContext);
-        const toFld = toRef.toReferenceSql(qryContext);
+        const toFld = toRef.toReferenceSql().toSql(qryContext);
         return `
 (
   ${fromJoin}
@@ -724,10 +724,10 @@ ${from} ${sqlJoinByType(this.type)} (
           4
         );
         const fromRef = (this.onFrom as IFieldReferenceFn)();
-        const fromFld = fromRef.toReferenceSql(qryContext);
+        const fromFld = fromRef.toReferenceSql().toSql(qryContext);
         const toJoin = indentString((this.to as IJoin).toSql(qryContext), 4);
         const toRef = (this.onTo as IFieldReferenceFn)();
-        const toFld = toRef.toReferenceSql(qryContext);
+        const toFld = toRef.toReferenceSql().toSql(qryContext);
         return `
 (
   ${fromJoin}
@@ -905,6 +905,11 @@ class FromClause implements IFromClause {
     const fromLines = this.joins.map(fromJoin => fromJoin.toSql(qryContext));
     fromLines.push(...this.tables.map(table => table.toSql(qryContext)));
     const tablesSql = fromLines.join(',\n');
+    return `from${
+      countNLines(tablesSql) > 1
+        ? `\n${indentString(tablesSql, 2)}`
+        : ` ${tablesSql}`
+    }`;
   };
 }
 

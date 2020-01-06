@@ -47,10 +47,10 @@ export class PgDialect implements IDBDialect {
   public now = () => rawSql('current_timestamp');
 
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement => {
-    if (selectStatement.maxRows && selectStatement.maxRows > 0) {
+    if (selectStatement.maxReturnRows && selectStatement.maxReturnRows > 0) {
       selectStatement.addClause(
         'limitBy',
-        rawSql(`limit ${selectStatement.maxRows}`)
+        rawSql(`limit ${selectStatement.maxReturnRows}`)
       );
     }
     return selectStatement;

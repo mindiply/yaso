@@ -1,6 +1,6 @@
 import {IDBTable} from '../dbModel';
 import indentString from 'indent-string';
-import {BaseSqlExpression, join, orderBy, QueryContext} from './SQLExpression';
+import {BaseSqlExpression, join, orderBy, QueryContext, selectClause} from './SQLExpression';
 import {countNLines, parenthesizeSql} from './utils';
 import {tbl} from './sqlTableQuery';
 import {
@@ -16,6 +16,7 @@ import {
   ReferencedTable
 } from './types';
 import {BaseReferenceTable} from './sqlTableFieldReference';
+import {createSelectStatement, ISelectStatement} from "./statements";
 
 type SelectQryTablePrm<T> = IDBTable<T> | ReferencedTable<T>;
 export interface IQryCallback {
@@ -199,6 +200,16 @@ export class SelectQry extends BaseSqlExpression implements ISQLExpression {
 
   public toString = (context?: IQueryContext): string => {
     const queryContext = context || new QueryContext();
+		const selectStatement = createSelectStatement();
+		selectStatement.addClause(selectClause(this.selectFields ? this.selectFields : Object.values(this.from)
+			.map(selectTable =>
+				selectTable.tbl.fields.map(field =>
+					(selectTable[
+						field.name as string
+						] as IFieldReferenceFn)().toSelectSql()
+				)
+			));
+		return selectStatement.toSql(queryContext);
     this.from.forEach(fromTbl => {
       queryContext.addTable(fromTbl);
     });

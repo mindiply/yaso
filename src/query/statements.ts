@@ -34,7 +34,7 @@ interface IClauses {
 }
 
 /**
- * A SQL statement is build up of statement blocks, and its toSql function
+ * A SQL statement is built up of statement clauses, and its toSql function
  * creates the string representation of the statement stored in the IStatement
  * object.
  *
@@ -132,15 +132,15 @@ class Statement implements IStatement {
  * A Select statement provides properties that are unique to Select statements.
  */
 export interface ISelectStatement extends IStatement {
-  maxRows?: number;
+  maxReturnRows?: number;
 }
 
 class SelectStatement extends Statement implements ISelectStatement {
-  public maxRows?: number;
+  public maxReturnRows?: number;
 
   constructor(maxRows?: number) {
     super();
-    this.maxRows = maxRows;
+    this.maxReturnRows = maxRows;
   }
 }
 
