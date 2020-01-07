@@ -1,6 +1,6 @@
-import {IFieldReference, ISQLExpression} from '../query/types';
 import {SQLValue} from '../query/SQLExpression';
 import {ISelectStatement} from '../query/statements';
+import {IFieldReference, ISQLExpression} from '../dbTypes';
 
 /**
  * An IDBDialect object provides functions that specialize the

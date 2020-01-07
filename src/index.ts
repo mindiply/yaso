@@ -34,10 +34,11 @@ export {
 export {
   insertQuerySql,
   tableSelectSql,
-  updateQuerySql
+  updateQuerySql,
+  tbl
 } from './query/sqlTableQuery';
 export {selectFrom} from './query/sqlQuery';
 export {usePg} from './db/pgSQL';
-export {tblCCFields, Id, ITbl, IId} from './query/utils';
-export {tbl} from './query/sqlTableQuery';
-export {ISQLExpression} from './query/types';
+export {tblCCFields} from './query/utils';
+export {ITbl, IId, Id} from './query/types';
+export {ISQLExpression} from './dbTypes';

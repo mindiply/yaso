@@ -1,6 +1,5 @@
 import {
   ITableDefinition,
-  IDBTable,
   tbl,
   insertQuerySql,
   and,
@@ -14,7 +13,6 @@ import {
   count,
   alias,
   updateQuerySql,
-  orderBy,
   max,
   createDBTbl,
   getDbTableByDbName
@@ -253,8 +251,7 @@ describe('Test table select queries', () => {
   };
   const qryTbl = tbl(tstDef);
   test('Simple single field, no condition query', () => {
-    const expectedSql = `select tst.tst_id as "id"
-from tst`;
+    const expectedSql = `select tst.tst_id as "id" from tst`;
     const sql = tableSelectSql(qryTbl, {fields: ['id']});
     expect(sql).toBe(expectedSql);
   });
@@ -273,9 +270,7 @@ where tst.tst_id = 'idtest'`;
   });
 
   test('One aggregate field, one simple condition', () => {
-    const expectedSql = `select count(1) as "nTst"
-from tst
-where tst.tst_id = 'idtest'`;
+    const expectedSql = `select count(1) as "nTst" from tst where tst.tst_id = 'idtest'`;
     const sql = tableSelectSql(qryTbl, tst => ({
       fields: [alias(count(1), 'nTst')],
       where: equals(tst.id, 'idtest')
@@ -307,11 +302,8 @@ where
   tst.tst_created_at as "when"
 from tst
 where
-  tst.tst_id = (
-    select max(tst2.tst_id)
-    from tst as "tst2"
-    where tst2.tst_name = $[name]
-  )`;
+  tst.tst_id =
+    (select max(tst2.tst_id) from tst as "tst2" where tst2.tst_name = $[name])`;
     const sql = qryTbl
       .selectQry(tst => ({
         where: equals(
@@ -372,7 +364,7 @@ order by enc.name`;
     const sql = tstQry.selectQrySql({
       fields: ['name'],
       where: equals(tstQry.pwHash, tstQry.pwHash().readValueToSql(prm('pw'))),
-      orderBy: orderBy({field: tstQry.name})
+      orderByFields: [{field: tstQry.name}]
     });
     expect(sql).toBe(expectdSql);
   });

@@ -1,21 +1,23 @@
-import {IDBField, IDBTable} from '../dbModel';
 import {
   FormattedSqlValueExpression,
   QueryContext,
   rawSql
 } from './SQLExpression';
+import {IFieldSelectSqlExpression} from './types';
+import {dbDialect} from '../db';
 import {
+  IDBField,
+  IDBTable,
   IFieldReference,
   IFieldReferenceFn,
   IQueryContext,
   ISQLExpression,
-  ReferencedTable,
-  IToSqlFn
-} from './types';
-import {dbDialect} from '../db';
+  IToSqlFn,
+  ReferencedTable
+} from '../dbTypes';
 
-class FieldSelectSqlExpression<T> implements ISQLExpression {
-  private field: IFieldReference<T>;
+class FieldSelectSqlExpression<T> implements IFieldSelectSqlExpression<T> {
+  public field: IFieldReference<T>;
 
   constructor(field: IFieldReference<T>) {
     this.field = field;
@@ -28,6 +30,13 @@ class FieldSelectSqlExpression<T> implements ISQLExpression {
       this.field.alias
     }"`;
   };
+}
+
+export function isFieldSelectSqlExpression(
+  obj: any
+): obj is IFieldSelectSqlExpression {
+  if (obj instanceof FieldSelectSqlExpression) return true;
+  return false;
 }
 
 class FieldToReferenceSqlExpression<T> implements ISQLExpression {
@@ -128,6 +137,16 @@ export class FieldReference<T> implements IFieldReference {
   };
 }
 
+export function isFieldReference(obj: any): obj is IFieldReference {
+  if (
+    (obj as IFieldReference).qryTbl &&
+    (obj as IFieldReference).toReferenceSql
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function updateFieldFormatFn(fieldStr?: string, valueStr?: string): string {
   return `${fieldStr} = ${valueStr}`;
 }
@@ -178,12 +197,15 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
     }`;
   };
 
-  public toReferenceSql = (qryContext: IQueryContext): string =>
-    this.aliasToUse(qryContext);
+  public toReferenceSql = (
+    qryContext: IQueryContext = new QueryContext()
+  ): string => this.aliasToUse(qryContext);
 
   public isSimpleValue = () => true;
 
-  protected aliasToUse = (qryContext: IQueryContext): string => {
+  protected aliasToUse = (
+    qryContext: IQueryContext = new QueryContext()
+  ): string => {
     const queryContext = qryContext || new QueryContext();
     let contextAlias = queryContext.tableRefAlias(this as ReferencedTable<T>);
     if (!contextAlias) {

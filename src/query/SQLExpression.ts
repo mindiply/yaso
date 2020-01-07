@@ -1,38 +1,46 @@
-import {countNLines, parenthesizeSql} from './utils';
+import {countNLines, infixString, parenthesizeSql} from './utils';
 import indentString from 'indent-string';
 import {
   AggregateOperator,
   BinaryComparator,
   DataValue,
-  IFieldReferenceFn,
   IFromClause,
-  IFromTable,
   IInNotInStatement,
   IJoin,
   INamedParameter,
   InNotInOperator,
   IOrderByFn,
-  IQueryContext,
   ISelectClause,
   ISqlAggregateOperator,
   ISqlAliasExpression,
   ISqlBinaryComparison,
-  ISQLExpression,
   ISqlListExpression,
   ISqlLogicalExpression,
   ISQLMathExpression,
-  ISQLOrderByExpression,
+  IOrderByClause,
   ISQLOrderByField,
+  IWhereClause,
   IWhereNullCond,
   JoinType,
   LogicalOperator,
   MathBinaryOperator,
   NullComparatorType,
-  ReferencedTable,
-  TableFieldUpdates
+  TableFieldUpdates,
+  MAX_SINGLE_LINE_STATEMENT_LENGTH
 } from './types';
-import {FieldReference} from './sqlTableFieldReference';
+import {
+  FieldReference,
+  isFieldReference,
+  isFieldSelectSqlExpression
+} from './sqlTableFieldReference';
 import {dbDialect} from '../db';
+import {
+  IFieldReferenceFn,
+  IFromTable,
+  IQueryContext,
+  ISQLExpression,
+  ReferencedTable
+} from '../dbTypes';
 
 type SQLTableFieldUpdates<T> = {
   [P in keyof T]?: ISQLExpression;
@@ -188,7 +196,7 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
       return String(value);
     }
     if (value instanceof FieldReference) {
-      return value.toSelectSql(qryContext);
+      return value.toSelectSql().toSql(qryContext);
     }
     if (typeof value === 'function') {
       return (value as IFieldReferenceFn)().toSql(qryContext);
@@ -249,16 +257,8 @@ export class SQLMathBinaryExpression extends BaseSqlExpression
     return false;
   };
 
-  public toSql = (qryContext?: IQueryContext) =>
-    `${
-      this.left.isSimpleValue()
-        ? this.left.toSql(qryContext)
-        : parenthesizeSql(this.left.toSql(qryContext))
-    } ${this.operator} ${
-      this.right.isSimpleValue()
-        ? this.right.toSql(qryContext)
-        : parenthesizeSql(this.right.toSql(qryContext))
-    }`;
+  public toSql = (qryContext: IQueryContext = new QueryContext()) =>
+    infixString(qryContext, this.left, this.operator, this.right);
 }
 
 export class RawSQL extends BaseSqlExpression {
@@ -375,15 +375,8 @@ export class BinaryOperatorExpression extends BaseSqlExpression
   public isSimpleValue = () =>
     Boolean(this.left.isSimpleValue() && this.right.isSimpleValue());
 
-  public toSql = (qryContext?: IQueryContext): string => {
-    const left = this.left.isSimpleValue()
-      ? this.left.toSql(qryContext)
-      : parenthesizeSql(this.left.toSql(qryContext));
-    const right = this.right.isSimpleValue()
-      ? this.right.toSql(qryContext)
-      : parenthesizeSql(this.right.toSql(qryContext));
-    return `${left} ${this.operator} ${right}`;
-  };
+  public toSql = (qryContext: IQueryContext = new QueryContext()): string =>
+    infixString(qryContext, this.left, this.operator, this.right);
 }
 
 export class LogicalOperatorCond extends BaseSqlExpression
@@ -523,10 +516,17 @@ class SQLListExpression extends BaseSqlExpression
 
   public isSimpleValue = () => true;
 
-  public toSql = (qryContext?: IQueryContext) =>
-    parenthesizeSql(
-      this.listItems.map(item => item.toSql(qryContext)).join(', ')
+  public toSql = (qryContext?: IQueryContext) => {
+    let totChars = 0;
+    const items = this.listItems.map((item, index) => {
+      const itemSql = item.toSql(qryContext);
+      totChars += itemSql.length + (index > 0 ? 1 : 0);
+      return itemSql;
+    });
+    return parenthesizeSql(
+      items.join(totChars > MAX_SINGLE_LINE_STATEMENT_LENGTH ? '\n' : ', ')
     );
+  };
 }
 
 export const list = (
@@ -555,16 +555,8 @@ class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
     this.right = right;
   }
 
-  public toSql = (qryContext?: IQueryContext) =>
-    `${
-      this.left.isSimpleValue()
-        ? this.left.toSql(qryContext)
-        : parenthesizeSql(this.left.toSql(qryContext))
-    } ${this.type} ${
-      this.right.isSimpleValue
-        ? this.right.toSql(qryContext)
-        : parenthesizeSql(this.right.toSql(qryContext))
-    }`;
+  public toSql = (qryContext: IQueryContext = new QueryContext()) =>
+    infixString(qryContext, this.left, this.type, this.right);
 }
 
 export const sqlIn = (
@@ -578,8 +570,7 @@ export const notIn = (
 ): IInNotInStatement =>
   new InNotInStatement(left, InNotInOperator.notIn, right);
 
-class SqlOrderByExpression extends BaseSqlExpression
-  implements ISQLOrderByExpression {
+class SqlOrderByClause extends BaseSqlExpression implements IOrderByClause {
   public orderByFields: ISQLOrderByField[];
 
   constructor(fields: ISQLOrderByField | ISQLOrderByField[]) {
@@ -616,9 +607,10 @@ class SqlOrderByExpression extends BaseSqlExpression
 
 export const orderBy: IOrderByFn = (
   fields: ISQLOrderByField | ISQLOrderByField[]
-): ISQLOrderByExpression => {
-  return new SqlOrderByExpression(fields);
+): IOrderByClause => {
+  return new SqlOrderByClause(fields);
 };
+
 const sqlJoinByType = (joinType: JoinType): string => {
   if (joinType === JoinType.inner) {
     return 'join';
@@ -685,7 +677,7 @@ export class Join extends BaseSqlExpression implements IJoin {
         const fromFld = fromRef.toReferenceSql().toSql(qryContext);
         const to = toRef.qryTbl.toSql(qryContext);
         const toFld = toRef.toReferenceSql().toSql(qryContext);
-        return ` ${from} ${sqlJoinByType(
+        return `${from} ${sqlJoinByType(
           this.type
         )} ${to} on ${fromFld} = ${toFld}`;
       } else {
@@ -737,6 +729,11 @@ ${from} ${sqlJoinByType(this.type)} (
       }
     }
   };
+}
+
+export function isJoin(obj: any): obj is IJoin {
+  if (obj instanceof Join) return true;
+  return false;
 }
 
 export function join<T1, T2>(
@@ -870,9 +867,32 @@ class SelectClause implements ISelectClause {
   public isSimpleValue = () => true;
 
   public toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    this.selectFields.sort((a, b) => {
+      const aAlias = isFieldReference(a)
+        ? a.alias
+        : isFieldSelectSqlExpression(a)
+        ? a.field.alias
+        : 'a';
+      const bAlias = isFieldReference(b)
+        ? b.alias
+        : isFieldSelectSqlExpression(b)
+        ? b.field.alias
+        : 'b';
+      if ((aAlias || '') < (bAlias || '')) {
+        return -1;
+      }
+      if ((aAlias || '') == (bAlias || '')) {
+        return 0;
+      }
+      return 1;
+    });
     const fieldsSql = this.selectFields
-      .map(field => field.toSql(qryContext))
-      .join('\n');
+      .map(field =>
+        isFieldReference(field)
+          ? field.toSelectSql().toSql(qryContext)
+          : field.toSql(qryContext)
+      )
+      .join(',\n');
     return `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
       fieldsSql,
       countNLines(fieldsSql) > 1 ? 2 : 1
@@ -885,6 +905,32 @@ export const selectClause = (fields?: ISQLExpression[]): ISelectClause =>
 
 export function isSelectClause(obj: any): obj is ISQLExpression {
   return obj && obj instanceof SelectClause ? true : false;
+}
+
+function populateJoinTableSet(
+  joins: IJoin[],
+  tablesSet: Set<IFromTable<any>>
+): void {
+  for (const join of joins) {
+    if (isFieldReference(join.from)) {
+      tablesSet.add(join.from.qryTbl);
+    }
+    if (typeof join.from === 'function') {
+      tablesSet.add(join.from().qryTbl);
+    }
+    if (isJoin(join.from)) {
+      populateJoinTableSet([join.from], tablesSet);
+    }
+    if (isFieldReference(join.to)) {
+      tablesSet.add(join.to.qryTbl);
+    }
+    if (typeof join.to === 'function') {
+      tablesSet.add(join.to().qryTbl);
+    }
+    if (isJoin(join.to)) {
+      populateJoinTableSet([join.to], tablesSet);
+    }
+  }
 }
 
 class FromClause implements IFromClause {
@@ -902,8 +948,21 @@ class FromClause implements IFromClause {
     if (this.tables.length === 0 && this.joins.length === 0) {
       return '';
     }
-    const fromLines = this.joins.map(fromJoin => fromJoin.toSql(qryContext));
-    fromLines.push(...this.tables.map(table => table.toSql(qryContext)));
+    let fromLines: string[];
+    if (this.joins.length > 0) {
+      // If there are joins, we need to add additional tables in the this.from
+      // member, excluding the tables already referenced in the joins
+      fromLines = this.joins.map(fromJoin => fromJoin.toSql(qryContext));
+      const tablesToFilter = this.tablesInJoins();
+      const fromRemaining = this.tables.filter(
+        table => !tablesToFilter.has(table)
+      );
+      if (fromRemaining.length > 0) {
+        fromLines.push(...fromRemaining.map(table => table.toSql(qryContext)));
+      }
+    } else {
+      fromLines = this.tables.map(table => table.toSql(qryContext));
+    }
     const tablesSql = fromLines.join(',\n');
     return `from${
       countNLines(tablesSql) > 1
@@ -911,9 +970,39 @@ class FromClause implements IFromClause {
         : ` ${tablesSql}`
     }`;
   };
+
+  private tablesInJoins = (): Set<IFromTable<any>> => {
+    const tablesSet: Set<IFromTable<any>> = new Set();
+    populateJoinTableSet(this.joins, tablesSet);
+    return tablesSet;
+  };
 }
 
 export const fromClause = (
   tables: IFromTable<any>[] = [],
   joins: IJoin[] = []
-) => new FromClause(tables, joins);
+): IFromClause => new FromClause(tables, joins);
+
+class WhereClause implements IWhereClause {
+  public rootWhereExpression: ISQLExpression;
+
+  constructor(rootWhereExpression: ISQLExpression) {
+    this.rootWhereExpression = rootWhereExpression;
+  }
+
+  isSimpleValue = () => true;
+
+  toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    const whereSql = this.rootWhereExpression.toSql(qryContext);
+    return `where${countNLines(whereSql) > 1 ? '\n' : ''}${indentString(
+      whereSql,
+      countNLines(whereSql) > 1 ? 2 : 1
+    )}`;
+  };
+}
+
+export const whereClause = (
+  rootWhereExpression: ISQLExpression
+): IWhereClause => {
+  return new WhereClause(rootWhereExpression);
+};

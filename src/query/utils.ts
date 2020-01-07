@@ -1,27 +1,72 @@
 import indentString from 'indent-string';
-import {ITableFieldDefinition} from '../dbTypes';
+import {IQueryContext, ISQLExpression, ITableFieldDefinition} from '../dbTypes';
+import {ITbl, MAX_SINGLE_LINE_STATEMENT_LENGTH} from './types';
 
 export const countNLines = (value: string): number =>
   String(value).split(/\r\n|\r|\n/).length;
 
 export const parenthesizeSql = (sqlStr: string): string => {
   const nLines = countNLines(sqlStr);
-  return `(${nLines > 1 ? '\n' : ''}${
-    nLines > 1 ? indentString(sqlStr, 2) : sqlStr
-  }${nLines > 1 ? '\n' : ''})`;
+  const doBreak =
+    nLines > 1 ||
+    (nLines === 0 && sqlStr.length + 2 > MAX_SINGLE_LINE_STATEMENT_LENGTH);
+  return `(${doBreak ? '\n' : ''}${doBreak ? indentString(sqlStr, 2) : sqlStr}${
+    doBreak ? '\n' : ''
+  })`;
 };
 
-export type Id = string | number;
-
-export interface IId {
-  _id: Id;
+function firstLineLength(text: string): number {
+  const nLines = countNLines(text);
+  if (nLines === 0) return 0;
+  if (nLines === 1) return text.length;
+  const lines = text.split(/\r\n|\r|\n/);
+  return lines[0].length;
 }
 
-export interface ITbl extends IId {
-  cc: number;
-  createdAt: Date;
-  updatedAt: Date;
+function lastLineLength(text: string): number {
+  const nLines = countNLines(text);
+  if (nLines === 0) return 0;
+  if (nLines === 1) return text.length;
+  const lines = text.split(/\r\n|\r|\n/);
+  return lines[lines.length - 1].length;
 }
+
+/**
+ * Creates a string for the a binary infix operator that breaks down the
+ * expression with newlines if the combination of characters is too long.
+ *
+ * @param qryContext
+ * @param left
+ * @param infixOperator
+ * @param right
+ */
+export const infixString = (
+  qryContext: IQueryContext,
+  left: ISQLExpression,
+  infixOperator: string,
+  right: ISQLExpression
+): string => {
+  const leftSql = left.isSimpleValue()
+    ? left.toSql(qryContext)
+    : parenthesizeSql(left.toSql(qryContext));
+  const leftLen = lastLineLength(leftSql);
+  const rightSql = right.isSimpleValue()
+    ? right.toSql(qryContext)
+    : parenthesizeSql(right.toSql(qryContext));
+  const rightLen = firstLineLength(rightSql);
+  const opLen = infixOperator.length + 2;
+  if (leftLen + rightLen + opLen <= MAX_SINGLE_LINE_STATEMENT_LENGTH) {
+    return `${leftSql} ${infixOperator} ${rightSql}`;
+  }
+  if (leftLen + opLen <= MAX_SINGLE_LINE_STATEMENT_LENGTH) {
+    return `${leftSql} ${infixOperator}\n${indentString(rightSql, 2)}`;
+  }
+
+  if (opLen + rightLen <= MAX_SINGLE_LINE_STATEMENT_LENGTH) {
+    return `${leftSql}\n${infixOperator} ${rightSql}`;
+  }
+  return `${leftSql}\n${infixOperator}\n${rightSql}`;
+};
 
 export const tblCCFields = <T extends ITbl>(
   tbl: string

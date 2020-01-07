@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Add calculated fields (subqueries) to table definitions
 - Complete coverage of SQL expressions
   - ~~In and not in statements in particular~~
-  - exists and not exists
+  - ~~exists and not exists~~
+  - union of select statements
 - Ability to work with sql statements as sql expressions in join, from and wheres
 - Refactor SQL dialect specific code to be in unique place and
 easy to adapt for other dialects
@@ -18,7 +19,17 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
-## [0.0.5] - TBA
+## [0.0.6] - 2020-01-07
+
+### Added
+- A select query has now a maxRows method that sets a limit
+on the number of rows returned. Works for Postgres only at the moment.
+
+### Changed
+- The select query created from a table reference object is a ISelectQry,
+meaning it can be manipulated the same way as starting with selectFrom.
+
+## [0.0.5] - 2019-12-16
 
 ### Fixes
 - Generation of encrypted and hash fields in where clauses were within

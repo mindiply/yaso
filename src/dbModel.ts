@@ -1,5 +1,6 @@
 import {
-  ITable,
+  IDBField,
+  IDBTable,
   ITableDefinition,
   ITableField,
   ITableFieldDefinition
@@ -11,17 +12,6 @@ const updatedAtRE = /_updated_at$/i;
 
 const tableRegistryByName: Map<string, IDBTable<any>> = new Map();
 const tableRegistryByDbName: Map<string, IDBTable<any>> = new Map();
-
-export interface IDBField<T> extends ITableField<T> {
-  readonly name: keyof T;
-  dbName: string;
-  isEncrypted: boolean;
-  isHash: boolean;
-  isPwHash: boolean;
-  isCC: boolean;
-  isInsertTimestamp: boolean;
-  isUpdateTimestamp: boolean;
-}
 
 export class DBField<T> implements ITableField<T> {
   public readonly name: keyof T;
@@ -45,24 +35,6 @@ export class DBField<T> implements ITableField<T> {
     this.isUpdateTimestamp =
       def.isUpdateTimestamp || updatedAtRE.test(def.dbName);
   }
-}
-
-export interface IDBTable<DataType = any> extends ITable<DataType> {
-  name: string;
-  dbName: string;
-  hasCC: boolean;
-  hasInsertTimestamp: boolean;
-  hasUpdateTimestamp: boolean;
-  fields: IDBField<DataType>[];
-  ccField?: IDBField<DataType>;
-  insertTimestampField?: IDBField<DataType>;
-  updateTimestampField?: IDBField<DataType>;
-  getFieldByName: (
-    fieldName: keyof DataType
-  ) => ITableFieldDefinition<DataType> | undefined;
-  getFieldByDbName: (
-    fieldDbName: string
-  ) => ITableFieldDefinition<DataType> | undefined;
 }
 
 export class DBTable<DataType = any> implements IDBTable<DataType> {

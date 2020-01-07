@@ -1,7 +1,7 @@
 import {FormattedSqlValueExpression, rawSql} from '../query/SQLExpression';
-import {IFieldReference, ISQLExpression} from '../query/types';
 import {IDBDialect, setDbDialect} from './index';
 import {ISelectStatement} from '../query/statements';
+import {IFieldReference, ISQLExpression} from '../dbTypes';
 
 const encryptFormatFn = (fldText = '') =>
   `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;

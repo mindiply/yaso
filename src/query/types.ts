@@ -1,61 +1,22 @@
-import {Id} from './utils';
-import {IDBField, IDBTable} from '../dbModel';
+import {
+  IDBTable,
+  IFieldReference,
+  IFieldReferenceFn,
+  IFromTable,
+  ISQLExpression,
+  ReferencedTable
+} from '../dbTypes';
 
-/**
- * the .toSql function signature (or any toXXXSql function), which
- * accepts an optional query context object to determine the alias
- * of the table the sql expression belongs to.
- */
-export interface IToSqlFn {
-  (qryContext?: IQueryContext): string;
+export type Id = string | number;
+
+export interface IId {
+  _id: Id;
 }
 
-/**
- * A ISQLExpression is the building block of SQL clauses and
- * statements.
- *
- * The main function is toSQL which provides the string representation
- * of the expression. Some expressions will throw an error if they need
- * an initialized query context and it is not provided.
- */
-export interface ISQLExpression {
-  toSql: IToSqlFn;
-  isSimpleValue: () => boolean;
-}
-
-/**
- * Represents a table used in a from clause of a sql statement.
- */
-export interface IFromTable<T> extends ISQLExpression {
-  alias?: string;
-  tbl: IDBTable<T>;
-  toReferenceSql: IToSqlFn;
-}
-
-export type ReferencedTable<T> = {
-  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
-} &
-  IFromTable<T>;
-
-/**
- * A query context is used provide unique aliases to the
- * tables within a sql query.
- */
-export interface IQueryContext {
-  /**
-   * Adds a table to be referenced to the context, and returns
-   * a unique alias it is assigned to.
-   * @param tbl The referenced table
-   * @param alias An alias if the alias is provided by the client
-   */
-  addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;
-
-  /**
-   * It returns the alias assigned to a specific refernced table object,
-   * using the === operator to find it.
-   * @param tbl
-   */
-  tableRefAlias: <T>(tbl: ReferencedTable<T>) => null | string;
+export interface ITbl extends IId {
+  cc: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ISqlAliasExpression extends ISQLExpression {
@@ -120,45 +81,12 @@ export interface ISqlListExpression extends ISQLExpression {
   listItems: ISQLExpression[];
 }
 
-/**
- * Represents a reference to a specific field of a referenced
- * table within a query.
- *
- * The field can be used in different types of statements and how
- * it should be represented in sql changes.
- */
-export interface IFieldReference<T = any> extends ISQLExpression {
-  /**
-   * If the field has been aliased that alias is returned, otherwise
-   * the database name of the field
-   */
-  readonly alias: string;
-  field: IDBField<T>;
-  qryTbl: ReferencedTable<T>;
-  toSelectSql: () => ISQLExpression;
-
-  /**
-   * Just refer to the field using the table alias and the field
-   * database name, without adding or using the alias. It's the
-   * same as toSql()
-   * @param qryContext
-   */
-  toReferenceSql: () => ISQLExpression;
-  toUpdateFieldSql: (val: ISQLExpression) => ISQLExpression;
-  readValueToSql: (val?: ISQLExpression) => ISQLExpression;
-  writeValueToSQL: (val?: ISQLExpression) => ISQLExpression;
-}
-
-export type IFieldReferenceFn<T = any> = (
-  newAlias?: string
-) => IFieldReference<T>;
-
 export interface ISQLOrderByField<T = any> {
   field: ISQLExpression | IFieldReferenceFn<T>;
   isDesc?: boolean;
 }
 
-export interface ISQLOrderByExpression extends ISQLExpression {
+export interface IOrderByClause extends ISQLExpression {
   orderByFields: ISQLOrderByField[];
 }
 
@@ -196,7 +124,7 @@ export interface IJoin<T1 = any, T2 = any, T3 = any, T4 = any>
   onTo?: IFieldReferenceFn;
 }
 
-export interface IOrderByFn<RT = ISQLOrderByExpression> {
+export interface IOrderByFn<RT = IOrderByClause> {
   <T>(fields: ISQLOrderByField<T>): RT;
 
   <T>(fields: [ISQLOrderByField<T>]): RT;
@@ -321,4 +249,207 @@ export interface ISelectClause extends ISQLExpression {
 export interface IFromClause extends ISQLExpression {
   tables: IFromTable<any>[];
   joins: IJoin[];
+}
+
+export interface IWhereClause extends ISQLExpression {
+  rootWhereExpression: ISQLExpression;
+}
+
+export type SelectQryTablePrm<T> = IDBTable<T> | ReferencedTable<T>;
+
+export interface IQryCallback {
+  <T>(qry: ISelectQry, t1: T): void;
+
+  <T1, T2>(qry: ISelectQry, t1: T1, t2: T2): void;
+
+  <T1, T2, T3>(qry: ISelectQry, t1: T1, t2: T2, t3: T3): void;
+
+  <T1, T2, T3, T4>(qry: ISelectQry, t1: T1, t2: T2, t3: T3, t4: T4): void;
+
+  <T1, T2, T3, T4, T5>(
+    qry: ISelectQry,
+    t1: T1,
+    t2: T2,
+    t3: T3,
+    t4: T4,
+    t5: T5
+  ): void;
+}
+
+export type SelectFields = Array<IFieldReference | ISQLExpression>;
+export type SelectFieldPrm<T> = IFieldReferenceFn<T> | ISQLExpression;
+
+export interface IFieldsMemberFn<ReturnType> {
+  <T>(field: SelectFieldPrm<T>): ReturnType;
+
+  <T1, T2>([field1, field2]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>
+  ]): ReturnType;
+
+  <T1, T2, T3>([field1, field2, field3]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4>([field1, field2, field3, field4]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5>([field1, field2, field3, field4, field5]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6>([field1, field2, field3, field4, field5, field6]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8,
+    field9
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>,
+    SelectFieldPrm<T9>
+  ]): ReturnType;
+
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>([
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8,
+    field9,
+    field10
+  ]: [
+    SelectFieldPrm<T1>,
+    SelectFieldPrm<T2>,
+    SelectFieldPrm<T3>,
+    SelectFieldPrm<T4>,
+    SelectFieldPrm<T5>,
+    SelectFieldPrm<T6>,
+    SelectFieldPrm<T7>,
+    SelectFieldPrm<T8>,
+    SelectFieldPrm<T9>,
+    SelectFieldPrm<T10>
+  ]): ReturnType;
+
+  (fields: SelectFieldPrm<any>[]): ReturnType;
+}
+
+/**
+ * Represents a SQL select query and allows manipulating it before generating
+ * its string representation. The Select query can use joins, tables,
+ * subqueries.
+ *
+ * The union operator is at this stage not supported.
+ */
+export interface ISelectQry extends ISQLExpression {
+  /**
+   * Allows working on the select query object itself with all
+   * the tables in the fields member field passed as parameters as
+   * well. Used in the selectFrom function.
+   *
+   * @param cb
+   */
+  executeCallback: (cb: IQryCallback) => void;
+
+  /**
+   * Lists all the fields we are explicitly selecting for the query.
+   * If no field is selected, all fields of all the involved tables will be returned.
+   */
+  fields: IFieldsMemberFn<ISelectQry>;
+
+  /**
+   * Allows ordering the query results on a number of fields, each one in asc or
+   * desc order
+   */
+  orderBy: IOrderByFn<ISelectQry>;
+
+  /**
+   * Allows adding two or more joined tables to the list of tables we select from.
+   *
+   * @param p1
+   * @param p2
+   * @param p3
+   * @param p4
+   * @param p5
+   */
+  join: <T1, T2>(
+    p1: IFieldReferenceFn<T1> | ISQLExpression,
+    p2: IFieldReferenceFn<T1 | T2> | ISQLExpression,
+    p3?: JoinType | IFieldReferenceFn<T1 | T2> | ISQLExpression,
+    p4?: JoinType | IFieldReferenceFn<T2>,
+    p5?: JoinType
+  ) => ISelectQry;
+
+  /**
+   * Sets the root where condition for the statement.
+   *
+   * @param rootCond
+   */
+  where: (rootCond: ISQLExpression) => ISelectQry;
+
+  /**
+   * If the database dialect supports it, you can limit the number of rows returned
+   * (e.g. limit in postgres, rownum in oracle, top in sql server...)
+   *
+   * Returns the query object itself to allow chaining of conditions
+   */
+  maxRows: (maxRows: number) => ISelectQry;
+}
+
+export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;
+
+export interface IFieldSelectSqlExpression<T = any> extends ISQLExpression {
+  field: IFieldReference<T>;
 }

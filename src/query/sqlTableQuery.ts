@@ -4,20 +4,21 @@ import {
   createReferencedTable,
   FieldReference
 } from './sqlTableFieldReference';
-import {createDBTbl, IDBTable, isDBTable} from '../dbModel';
+import {createDBTbl, isDBTable} from '../dbModel';
 import {countNLines} from './utils';
 import {QueryContext, transformFieldUpdatesToSql} from './SQLExpression';
-import {ITableDefinition} from '../dbTypes';
 import {
+  IDBTable,
   IFieldReference,
   IFieldReferenceFn,
   IQueryContext,
   ISQLExpression,
-  ISQLOrderByExpression,
-  ReferencedTable,
-  TableFieldUpdates,
-  IToSqlFn
-} from './types';
+  ITableDefinition,
+  IToSqlFn,
+  ReferencedTable
+} from '../dbTypes';
+import {TableFieldUpdates, ISQLOrderByField, ISelectQry} from './types';
+import {selectFrom} from './sqlQuery';
 
 export type SelectFieldRef<T> = keyof T | ISQLExpression;
 
@@ -28,7 +29,8 @@ interface ITableQryBaseParameters<T> {
 interface ITableSelectQryParameters<T> {
   fields?: SelectFieldRef<T>[];
   where?: ISQLExpression;
-  orderBy?: ISQLOrderByExpression;
+  orderByFields?: ISQLOrderByField[];
+  maxRows?: number;
 }
 
 export interface IInsertQryParameters<T> {
@@ -79,7 +81,7 @@ abstract class BaseTableQuery<T> {
     const fieldsSql = selectFields
       .map(field =>
         field.toSelectSql
-          ? field.toSelectSql(qryContext)
+          ? field.toSelectSql().toSql(qryContext)
           : field.toSql(qryContext)
       )
       .join(',\n');
@@ -87,46 +89,6 @@ abstract class BaseTableQuery<T> {
   };
 
   public isSimpleValue = () => false;
-}
-
-class SelectTableQuery<T> extends BaseTableQuery<T> implements ISQLExpression {
-  protected fields?: SelectFieldRef<T>[];
-  protected where?: ISQLExpression;
-  protected orderBy?: ISQLOrderByExpression;
-
-  constructor({
-    tbl,
-    fields,
-    where,
-    orderBy
-  }: ITableSelectQryParameters<T> & ITableQryBaseParameters<T>) {
-    super(tbl);
-    this.fields = fields;
-    this.where = where;
-    this.orderBy = orderBy;
-  }
-
-  public toSql = (context?: IQueryContext): string => {
-    const qryContext = context || new QueryContext();
-    qryContext.addTable(this.refTbl);
-    const fieldsSql = this.fieldsTableSelect(qryContext, this.fields);
-    const nFieldsLineCount = countNLines(fieldsSql);
-    const whereSql = this.where ? this.where.toSql(qryContext) : '';
-    const whereLineCount = countNLines(whereSql);
-    const orderBySql = this.orderBy ? this.orderBy.toSql(qryContext) : '';
-    return `select${nFieldsLineCount > 1 ? '\n' : ''}${indentString(
-      fieldsSql,
-      nFieldsLineCount > 1 ? 2 : 1
-    )}
-from ${this.refTbl.toSql(qryContext)}${
-      whereSql
-        ? '\nwhere' +
-          (whereLineCount > 1
-            ? '\n' + indentString(whereSql, 2)
-            : ' ' + whereSql)
-        : ''
-    }${orderBySql ? `\n${orderBySql}` : ''}`;
-  };
 }
 
 type IGenerateParametersCallbackFn<T> = (
@@ -142,17 +104,49 @@ interface ITableSelectQrySql {
     cb: IGenerateParametersCallbackFn<T>
   ): string;
 }
+
+const tableSelectQry = <T>(
+  dbTable: IDBTable<T> | ReferencedTable<T>,
+  propsOrCb:
+    | ITableSelectQryParameters<T>
+    | IGenerateParametersCallbackFn<T> = {}
+): ISelectQry => {
+  const refTbl: ReferencedTable<T> = isDBTable<T>(dbTable)
+    ? createReferencedTable(dbTable)
+    : (dbTable as ReferencedTable<T>);
+  const props = typeof propsOrCb === 'function' ? propsOrCb(refTbl) : propsOrCb;
+  const tblQuery = selectFrom(refTbl);
+  if (props.maxRows && props.maxRows > 0) {
+    tblQuery.maxRows(props.maxRows);
+  }
+  if (props.fields) {
+    tblQuery.fields(
+      props.fields.map(fieldRef => {
+        if (typeof fieldRef === 'string') {
+          return (refTbl as BaseReferenceTable)[
+            fieldRef as string
+          ] as IFieldReferenceFn;
+        }
+        return fieldRef as ISQLExpression;
+      })
+    );
+  }
+  if (props.orderByFields) {
+    tblQuery.orderBy(props.orderByFields);
+  }
+  if (props.where) {
+    tblQuery.where(props.where);
+  }
+  return tblQuery;
+};
+
 export const tableSelectSql: ITableSelectQrySql = <T>(
   dbTable: IDBTable<T> | ReferencedTable<T>,
   propsOrCb:
     | ITableSelectQryParameters<T>
     | IGenerateParametersCallbackFn<T> = {}
 ): string => {
-  const refTbl: ReferencedTable<T> = isDBTable<T>(dbTable)
-    ? createReferencedTable(dbTable)
-    : (dbTable as ReferencedTable<T>);
-  const props = typeof propsOrCb === 'function' ? propsOrCb(refTbl) : propsOrCb;
-  const tblQuery = new SelectTableQuery({...props, tbl: refTbl});
+  const tblQuery = tableSelectQry(dbTable, propsOrCb);
   return tblQuery.toSql();
 };
 
@@ -440,9 +434,7 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
       | IGenerateParametersCallbackFn<T> = {}
   ): ISQLExpression => {
     const refTbl: ReferencedTable<T> = this as ReferencedTable<T>;
-    const props =
-      typeof propsOrCb === 'function' ? propsOrCb(refTbl) : propsOrCb;
-    return new SelectTableQuery({...props, tbl: refTbl});
+    return tableSelectQry(refTbl, propsOrCb);
   };
 
   public selectQrySql = (

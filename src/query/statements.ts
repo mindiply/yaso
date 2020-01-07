@@ -10,10 +10,9 @@
  * functions and classes like TableQuery and SelectQry.
  */
 
-import {IQueryContext, ISQLExpression} from './types';
+import {MAX_SINGLE_LINE_STATEMENT_LENGTH} from './types';
 import {QueryContext} from './SQLExpression';
-
-const MAX_SINGLE_LINE_STATEMENT_LENGTH = 80;
+import {IQueryContext, ISQLExpression} from '../dbTypes';
 
 /**
  * Interface to manage blocks that make up a Sql statement (select block,
@@ -120,10 +119,10 @@ class Statement implements IStatement {
       return blockSql;
     });
     return statementLines.join(
-      nChars > MAX_SINGLE_LINE_STATEMENT_LENGTH &&
+      nChars <= MAX_SINGLE_LINE_STATEMENT_LENGTH &&
         statementLines.every(line => !/\r|\n/.test(line))
-        ? '\n'
-        : ' '
+        ? ' '
+        : '\n'
     );
   };
 }
