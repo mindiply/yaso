@@ -11,38 +11,63 @@ import {
   min,
   alias,
   rawSql,
-  createDBTbl
+  createDBTbl,
+  nullValue,
+  value,
+  max
 } from '../src';
 
 usePg();
 
-describe('Basic select queries', () => {
-  const tblDef: ITableDefinition<ITst> = {
-    name: 'Test',
-    dbName: 'tst',
-    fields: [
-      {
-        name: '_id',
-        dbName: 'tst_id'
-      },
-      {
-        name: 'name',
-        dbName: 'tst_name'
-      },
-      {
-        name: 'cc',
-        dbName: 'tst_cc',
-        isCC: true
-      }
-    ]
-  };
-  interface ITst {
-    _id: string;
-    name: string;
-    cc: number;
-  }
-  const tstTbl = createDBTbl(tblDef);
+const tblDef: ITableDefinition<ITst> = {
+  name: 'Test',
+  dbName: 'tst',
+  fields: [
+    {
+      name: '_id',
+      dbName: 'tst_id'
+    },
+    {
+      name: 'name',
+      dbName: 'tst_name'
+    },
+    {
+      name: 'cc',
+      dbName: 'tst_cc',
+      isCC: true
+    }
+  ]
+};
+interface ITst {
+  _id: string;
+  name: string;
+  cc: number;
+}
+const tstTbl = createDBTbl(tblDef);
 
+describe('Sql expressions in isolation', () => {
+  test('nvl with numeric values on one line', () => {
+    const expectedResult = 'coalesce(2, 1)';
+    expect(nullValue(value(2), value(1)).toSql()).toBe(expectedResult);
+  });
+
+  test('nvl with sql statement and value on multiple lines', () => {
+    const expectedResult = `coalesce(
+  select max(tst.tst_id) from tst where tst.tst_name = $[name],
+  1
+)`;
+    expect(
+      nullValue(
+        selectFrom(tstTbl, (qry, tst) => {
+          qry.fields([max(tst._id)]).where(equals(tst.name, prm('name')));
+        }),
+        value(1)
+      ).toSql()
+    ).toBe(expectedResult);
+  });
+});
+
+describe('Basic select queries', () => {
   test('should be a select *', () => {
     const sql = selectFrom(tstTbl).toString();
     const expectedSql = `select

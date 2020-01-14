@@ -28,7 +28,11 @@ export {
   list,
   sqlIn,
   notIn,
-  orderBy
+  orderBy,
+  value,
+  caseWhen,
+  nullValue,
+  sqlNull
 } from './query/SQLExpression';
 
 export {

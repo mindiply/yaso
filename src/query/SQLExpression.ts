@@ -26,7 +26,9 @@ import {
   MathBinaryOperator,
   NullComparatorType,
   TableFieldUpdates,
-  MAX_SINGLE_LINE_STATEMENT_LENGTH
+  MAX_SINGLE_LINE_STATEMENT_LENGTH,
+  ISqlCaseExpression,
+  ISqlCaseBranch
 } from './types';
 import {
   FieldReference,
@@ -51,6 +53,15 @@ export abstract class BaseSqlExpression implements ISQLExpression {
 
   toSql = () => '';
 }
+
+export class NullExpression extends BaseSqlExpression
+  implements ISQLExpression {
+  isSimpleValue = () => true;
+
+  toSql = () => 'NULL';
+}
+
+export const sqlNull = () => new NullExpression();
 
 export class AliasSqlExpression extends BaseSqlExpression
   implements ISqlAliasExpression {
@@ -79,6 +90,13 @@ export class AliasSqlExpression extends BaseSqlExpression
 
 export const alias = (expression: ISQLExpression, alias: string) =>
   new AliasSqlExpression(expression, alias);
+
+export function isSqlExpression(obj: any): obj is ISQLExpression {
+  if (obj instanceof BaseSqlExpression || (obj && obj.toSql)) {
+    return true;
+  }
+  return false;
+}
 
 export class NamedParameter extends BaseSqlExpression
   implements INamedParameter {
@@ -157,7 +175,7 @@ export class QueryContext implements IQueryContext {
   };
 }
 
-export class SQLValue extends BaseSqlExpression implements ISQLExpression {
+class SQLValue extends BaseSqlExpression implements ISQLExpression {
   protected readonly value: DataValue;
   constructor(data: DataValue) {
     super();
@@ -171,7 +189,8 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
       typeof this.value === 'boolean' ||
       this.value instanceof Date ||
       typeof this.value === 'function' ||
-      this.value instanceof FieldReference
+      this.value instanceof FieldReference ||
+      this.value === null
     ) {
       return true;
     }
@@ -204,8 +223,16 @@ export class SQLValue extends BaseSqlExpression implements ISQLExpression {
     if (typeof value === 'boolean') {
       return value ? 'true' : 'false';
     }
+    if (value === null) {
+      return 'NULL';
+    }
     return `'${String(value)}'`;
   };
+}
+
+export function value(value: DataValue | ISQLExpression): ISQLExpression {
+  if (isSqlExpression(value)) return value;
+  return new SQLValue(value);
 }
 
 export const transformFieldUpdatesToSql = <T>(
@@ -1006,3 +1033,77 @@ export const whereClause = (
 ): IWhereClause => {
   return new WhereClause(rootWhereExpression);
 };
+
+class CaseExpression extends BaseSqlExpression implements ISqlCaseExpression {
+  public whenBranches: ISqlCaseBranch[];
+  public elseVal?: ISQLExpression;
+
+  constructor(
+    whenBranches: Array<{
+      condition: ISQLExpression | DataValue;
+      then: ISQLExpression | DataValue;
+    }>,
+    elseVal?: ISQLExpression | DataValue
+  ) {
+    super();
+    this.whenBranches = whenBranches.map(({condition, then}) => ({
+      condition: isSqlExpression(condition)
+        ? condition
+        : new SQLValue(condition),
+      then: isSqlExpression(then) ? then : new SQLValue(then)
+    }));
+    this.elseVal = elseVal
+      ? isSqlExpression(elseVal)
+        ? elseVal
+        : new SQLValue(elseVal)
+      : undefined;
+  }
+
+  toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    if (this.whenBranches.length < 1) return '';
+    const lines: string[] = ['case'];
+    this.whenBranches.forEach(({condition, then}) => {
+      lines.push(
+        `when ${condition.toSql(qryContext)} then ${then.toSql(qryContext)}`
+      );
+    });
+    lines.push('end');
+    const caseLen =
+      lines.reduce((totLen, line) => totLen + line.length, 0) +
+      lines.length -
+      1;
+    if (caseLen < MAX_SINGLE_LINE_STATEMENT_LENGTH) {
+      return lines.join(' ');
+    }
+    lines.pop();
+    lines.unshift();
+    return `case\n${indentString(lines.join('\n'), 2)}\nend`;
+  };
+}
+
+export function caseWhen(
+  whenBranches: Array<{
+    condition: ISQLExpression | DataValue;
+    then: ISQLExpression | DataValue;
+  }>,
+  elseVal?: ISQLExpression | DataValue
+): ISqlCaseExpression {
+  return new CaseExpression(whenBranches, elseVal);
+}
+
+/**
+ * Represents a sql expression that returns value 1 if
+ * it does not evaluate to null, and val 2 otherwise.
+ *
+ * It returns different syntax based on the database dialect
+ * in use
+ *
+ * @param val1
+ * @param val2
+ */
+export function nullValue(
+  val1: ISQLExpression | DataValue,
+  val2: ISQLExpression | DataValue
+): ISQLExpression {
+  return dbDialect().nullValue(val1, val2);
+}

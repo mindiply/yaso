@@ -1,6 +1,7 @@
-import {SQLValue} from '../query/SQLExpression';
+import {caseWhen, value} from '../query/SQLExpression';
 import {ISelectStatement} from '../query/statements';
 import {IFieldReference, ISQLExpression} from '../dbTypes';
+import {DataValue} from '../query/types';
 
 /**
  * An IDBDialect object provides functions that specialize the
@@ -17,6 +18,29 @@ export interface IDBDialect {
   ) => ISQLExpression;
   now: () => ISQLExpression;
   namedParameter: (parameterName: string) => string;
+
+  /**
+   * The null value expression (nvl in oracle, coalesce in postgres)
+   * allows returning a second sql expression if the first one
+   * evaluates to null
+   *
+   * @param val1
+   * @param val2
+   */
+  nullValue: (
+    val1: DataValue | ISQLExpression,
+    val2: DataValue | ISQLExpression
+  ) => ISQLExpression;
+
+  /**
+   * Given a select statement in input, allows to manipulate it
+   * in order to inject dialect specific syntax in the statement.
+   *
+   * The statement object returned may or may not be different from the
+   * one provided in input.
+   *
+   * @param selectStatement
+   */
   toSelectSql: (selectStatement: ISelectStatement) => ISelectStatement;
 }
 
@@ -27,10 +51,14 @@ class NoDialect implements IDBDialect {
   hashPwField = (expression: ISQLExpression): ISQLExpression => expression;
   hashPwFieldVal = (valueExpression: ISQLExpression): ISQLExpression =>
     valueExpression;
-  now = () => new SQLValue('now');
+  now = () => value('now');
   namedParameter = (name: string) => name;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
+  nullValue = (
+    val1: ISQLExpression | DataValue,
+    val2: ISQLExpression | DataValue
+  ): ISQLExpression => caseWhen([{condition: val1, then: val1}], val2);
 }
 
 let currentDialect: IDBDialect = new NoDialect();

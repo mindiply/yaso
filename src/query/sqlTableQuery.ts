@@ -432,7 +432,7 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
     propsOrCb:
       | ITableSelectQryParameters<T>
       | IGenerateParametersCallbackFn<T> = {}
-  ): ISQLExpression => {
+  ): ISelectQry => {
     const refTbl: ReferencedTable<T> = this as ReferencedTable<T>;
     return tableSelectQry(refTbl, propsOrCb);
   };

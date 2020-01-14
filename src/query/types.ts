@@ -72,6 +72,16 @@ export enum AggregateOperator {
   sum = 'sum'
 }
 
+export interface ISqlCaseBranch {
+  condition: ISQLExpression;
+  then: ISQLExpression;
+}
+
+export interface ISqlCaseExpression extends ISQLExpression {
+  whenBranches: ISqlCaseBranch[];
+  elseVal?: ISQLExpression;
+}
+
 export interface ISqlAggregateOperator extends ISQLExpression {
   expression: ISQLExpression;
   operator: AggregateOperator;
@@ -237,7 +247,8 @@ export type DataValue =
   | IFieldReferenceFn<Uint8Array>
   | IFieldReferenceFn<Id>
   | IFieldReferenceFn<AtomicDataValue>
-  | INamedParameter;
+  | INamedParameter
+  | null;
 export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | ISQLExpression;
 };
@@ -452,4 +463,9 @@ export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;
 
 export interface IFieldSelectSqlExpression<T = any> extends ISQLExpression {
   field: IFieldReference<T>;
+}
+
+export interface ISqlNullValueExpression {
+  val1: ISQLExpression;
+  val2: ISQLExpression;
 }

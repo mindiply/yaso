@@ -19,6 +19,17 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+
+## [0.0.7] - 2020-01-xx
+
+### Added
+- Added the following SQL expressions/clauses:
+  - **orderBy** clause to select queries
+  - **value**
+  - **caseWhen** case when else expression
+  - **nullValue** for specifying an alternative value when the first expression is null
+  - **sqlNull** for insertint the NULL reserved word
+
 ## [0.0.6] - 2020-01-07
 
 ### Added
