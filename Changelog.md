@@ -20,7 +20,7 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
-## [0.0.7] - 2020-01-xx
+## [0.0.7] - 2020-01-17
 
 ### Added
 - Added the following SQL expressions/clauses:
