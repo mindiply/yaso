@@ -10,6 +10,7 @@ import {ISelectStatement} from '../query/statements';
 import {IFieldReference, IQueryContext, ISQLExpression} from '../dbTypes';
 import {DataValue, MAX_SINGLE_LINE_STATEMENT_LENGTH} from '../query/types';
 import indentString from 'indent-string';
+import {parenthesizeSql} from '../query/utils';
 
 const encryptFormatFn = (fldText = '') =>
   `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;
@@ -46,7 +47,9 @@ class CoalesceSqlExpression extends BaseSqlExpression
   toSql = (qryContext: IQueryContext = new QueryContext()) => {
     if (this.expressions.length < 2) return '';
     const values = this.expressions.map(expression =>
-      expression.toSql(qryContext)
+      expression.isSimpleValue()
+        ? expression.toSql(qryContext)
+        : parenthesizeSql(expression.toSql(qryContext))
     );
     if (
       values.reduce((totChars, valueLine) => totChars + valueLine.length, 0) +

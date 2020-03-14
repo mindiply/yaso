@@ -53,7 +53,7 @@ describe('Sql expressions in isolation', () => {
 
   test('nvl with sql statement and value on multiple lines', () => {
     const expectedResult = `coalesce(
-  select max(tst.tst_id) from tst where tst.tst_name = $[name],
+  (select max(tst.tst_id) from tst where tst.tst_name = $[name]),
   1
 )`;
     expect(
