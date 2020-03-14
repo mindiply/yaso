@@ -20,6 +20,12 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.8] - 2020-03-14
+
+### Fixes
+- Coalesce with subqueries did not wrap the subquery in
+parenthesis causing a syntax error
+
 ## [0.0.7] - 2020-01-17
 
 ### Added
