@@ -2,6 +2,7 @@ export * from './dbTypes';
 export * from './dbModel';
 
 export {
+  aggregateWith,
   prm,
   or,
   equals,

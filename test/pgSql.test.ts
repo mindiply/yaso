@@ -14,11 +14,22 @@ import {
   createDBTbl,
   nullValue,
   value,
-  max
+  max,
+  add,
+  count,
+  aggregateWith
 } from '../src';
 
-usePg();
+interface ITst {
+  _id: string;
+  name: string;
+  cc: number;
+  simpleCF: () => number;
+  complexCF: () => number;
+  calculation: () => number;
+}
 
+usePg();
 const tblDef: ITableDefinition<ITst> = {
   name: 'Test',
   dbName: 'tst',
@@ -36,13 +47,35 @@ const tblDef: ITableDefinition<ITst> = {
       dbName: 'tst_cc',
       isCC: true
     }
+  ],
+  calculatedFields: [
+    {
+      name: 'simpleCF',
+      dbName: 'simpleCF',
+      calculation: tblRef => add(tblRef.cc, tblRef.cc)
+    },
+    {
+      name: 'complexCF',
+      dbName: 'complexCF',
+      calculation: tblRef =>
+        selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
+          qry
+            .fields(count(tbl2Ref._id))
+            .where(equals(tbl2Ref.name, tblRef.name));
+        })
+    },
+    {
+      name: 'calculation',
+      dbName: 'exampleCalculation',
+      calculation: tblRef =>
+        selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
+          qry
+            .fields(count(tbl2Ref._id))
+            .where(equals(tbl2Ref.name, tblRef.name));
+        })
+    }
   ]
 };
-interface ITst {
-  _id: string;
-  name: string;
-  cc: number;
-}
 const tstTbl = createDBTbl(tblDef);
 
 describe('Sql expressions in isolation', () => {
@@ -76,6 +109,54 @@ describe('Basic select queries', () => {
   tst.tst_name as "name"
 from tst`;
     expect(sql).toBe(expectedSql);
+  });
+
+  test('custom aggregate operator', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry.fields(aggregateWith('array_agg', tst._id));
+    }).toString();
+    const expectedSql = `select array_agg(tst.tst_id) from tst`;
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('should select id and simple calculated field', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry.fields([tst._id, tst.simpleCF]).where(equals(tst.name, prm('name')));
+    }).toSql();
+    expect(sql).toBe(`select
+  tst.tst_id as "_id",
+  (tst.tst_cc + tst.tst_cc) as "simpleCF"
+from tst
+where tst.tst_name = $[name]`);
+  });
+
+  test('should select id and complex calculated field', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry.fields([tst._id, tst.complexCF]).where(equals(tst.name, prm('name')));
+    }).toSql();
+    expect(sql).toBe(`select
+  tst.tst_id as "_id",
+  (
+    select count(tst2.tst_id)
+    from tst as "tst2"
+    where tst2.tst_name = tst.tst_name
+  ) as "complexCF"
+from tst
+where tst.tst_name = $[name]`);
+  });
+
+  test('Use complex calculated field in where clause', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry.fields(tst._id).where(moreThan(tst.complexCF, 1));
+    }).toSql();
+    expect(sql).toBe(`select tst.tst_id as "_id"
+from tst
+where
+  (
+    select count(tst2.tst_id)
+    from tst as "tst2"
+    where tst2.tst_name = tst.tst_name
+  ) > 1`);
   });
 
   const tstTbl2 = tbl(tstTbl, 'tst2');

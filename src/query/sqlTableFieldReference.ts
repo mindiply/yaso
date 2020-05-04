@@ -1,25 +1,29 @@
 import {
   FormattedSqlValueExpression,
+  parenthesized,
   QueryContext,
   rawSql
 } from './SQLExpression';
 import {IFieldSelectSqlExpression} from './types';
 import {dbDialect} from '../db';
 import {
+  ICalculatedFieldReference,
+  ICalculatedFieldReferenceFn,
   IDBField,
   IDBTable,
   IFieldReference,
   IFieldReferenceFn,
   IQueryContext,
   ISQLExpression,
+  ITableCalculateFieldDefinition,
   IToSqlFn,
   ReferencedTable
 } from '../dbTypes';
 
 class FieldSelectSqlExpression<T> implements IFieldSelectSqlExpression<T> {
-  public field: IFieldReference<T>;
+  public readonly field: IFieldReference<T> | ICalculatedFieldReference<T>;
 
-  constructor(field: IFieldReference<T>) {
+  constructor(field: IFieldReference<T> | ICalculatedFieldReference<T>) {
     this.field = field;
   }
 
@@ -40,9 +44,9 @@ export function isFieldSelectSqlExpression(
 }
 
 class FieldToReferenceSqlExpression<T> implements ISQLExpression {
-  private field: FieldReference<T>;
+  private field: FieldReference<T> | ICalculatedFieldReference<T>;
 
-  constructor(field: FieldReference<T>) {
+  constructor(field: FieldReference<T> | ICalculatedFieldReference<T>) {
     this.field = field;
   }
 
@@ -56,9 +60,9 @@ class FieldToReferenceSqlExpression<T> implements ISQLExpression {
   };
 }
 
-export class FieldReference<T> implements IFieldReference {
-  public field: IDBField<T>;
-  public qryTbl: ReferencedTable<T>;
+export class FieldReference<T> implements IFieldReference<T> {
+  public readonly field: IDBField<T>;
+  public readonly qryTbl: ReferencedTable<T>;
   protected _alias?: string;
 
   constructor(qryTbl: ReferencedTable<T>, field: IDBField<T>, alias?: string) {
@@ -166,9 +170,66 @@ interface IToBooleanFn {
   (): boolean;
 }
 
+class CalculateFieldReference<DBTable>
+  implements ICalculatedFieldReference<DBTable> {
+  public readonly field: ITableCalculateFieldDefinition<DBTable>;
+  public readonly qryTbl: ReferencedTable<DBTable>;
+  protected _alias?: string;
+
+  constructor(
+    qryTbl: ReferencedTable<DBTable>,
+    calcField: ITableCalculateFieldDefinition<DBTable>,
+    alias?: string
+  ) {
+    this.field = calcField;
+    this.qryTbl = qryTbl;
+    if (alias) {
+      this._alias = alias;
+    }
+  }
+
+  public get alias() {
+    return this._alias || (this.field.name as string);
+  }
+
+  public isSimpleValue = () => false;
+
+  public toSelectSql = (): ISQLExpression => {
+    return new FieldSelectSqlExpression(this);
+  };
+
+  public readValueToSql = (): ISQLExpression =>
+    parenthesized(this.field.calculation(this.qryTbl));
+
+  public toSql = (qryContext: IQueryContext = new QueryContext()): string =>
+    this.readValueToSql().toSql(qryContext);
+}
+
+export function isCalculateFieldReference(
+  obj: any
+): obj is ICalculatedFieldReference {
+  return obj && obj instanceof CalculateFieldReference;
+}
+
+export function createCalcFieldReferenceFn<T>(
+  qryTbl: ReferencedTable<T>,
+  calcField: ITableCalculateFieldDefinition<T>,
+  alias?: string
+): () => ICalculatedFieldReference<T> {
+  const ref: ICalculatedFieldReference<T> = new CalculateFieldReference(
+    qryTbl,
+    calcField,
+    alias
+  );
+  return (): ICalculatedFieldReference<T> => {
+    return ref;
+  };
+}
+
 export class BaseReferenceTable<T = any> implements ISQLExpression {
   [fieldname: string]:
-    | IFieldReferenceFn
+    | IFieldReferenceFn<T>
+    | ICalculatedFieldReferenceFn<T>
     | IDBTable<T>
     | string
     | undefined
@@ -184,10 +245,19 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
     }
     this.tbl.fields.forEach(field => {
       this[field.name as string] = createFieldReferenceFn(
-        this as ReferencedTable<T>,
+        (this as any) as ReferencedTable<T>,
         field
       );
     });
+
+    if (this.tbl.calculatedFields) {
+      for (const calcField of this.tbl.calculatedFields) {
+        this[calcField.name as string] = createCalcFieldReferenceFn(
+          (this as any) as ReferencedTable<T>,
+          calcField
+        );
+      }
+    }
   }
 
   public toSql = (qryContext: IQueryContext = new QueryContext()): string => {
@@ -207,9 +277,11 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
     qryContext: IQueryContext = new QueryContext()
   ): string => {
     const queryContext = qryContext || new QueryContext();
-    let contextAlias = queryContext.tableRefAlias(this as ReferencedTable<T>);
+    let contextAlias = queryContext.tableRefAlias(
+      (this as any) as ReferencedTable<T>
+    );
     if (!contextAlias) {
-      contextAlias = queryContext.addTable(this as ReferencedTable<T>);
+      contextAlias = queryContext.addTable((this as any) as ReferencedTable<T>);
     }
     return contextAlias;
   };
@@ -219,5 +291,5 @@ export function createReferencedTable<T>(
   dbTable: IDBTable<T>,
   alias?: string
 ): ReferencedTable<T> {
-  return new BaseReferenceTable(dbTable, alias) as ReferencedTable<T>;
+  return (new BaseReferenceTable(dbTable, alias) as any) as ReferencedTable<T>;
 }

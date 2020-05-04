@@ -31,11 +31,11 @@ interface ICoalesceSqlExpression {
   expressions: ISQLExpression[];
 }
 
-class CoalesceSqlExpression extends BaseSqlExpression
+class CoalesceSqlExpression<LeftTableDef = any> extends BaseSqlExpression
   implements ICoalesceSqlExpression {
   public expressions: ISQLExpression[];
 
-  constructor(...expressions: Array<DataValue | ISQLExpression>) {
+  constructor(...expressions: Array<DataValue<LeftTableDef> | ISQLExpression>) {
     super();
     this.expressions = expressions.map(expression => value(expression));
   }
@@ -101,10 +101,11 @@ export class PgDialect implements IDBDialect {
     return selectStatement;
   };
 
-  nullValue = (
-    val1: ISQLExpression | DataValue,
-    val2: ISQLExpression | DataValue
-  ): ISQLExpression => new CoalesceSqlExpression(val1, val2);
+  nullValue = <LeftTableDef = {}, RightTableDef = {}>(
+    val1: ISQLExpression | DataValue<LeftTableDef>,
+    val2: ISQLExpression | DataValue<RightTableDef>
+  ): ISQLExpression =>
+    new CoalesceSqlExpression(val1, val2 as DataValue<LeftTableDef>);
 }
 
 export const usePg = () => {

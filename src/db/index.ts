@@ -27,9 +27,9 @@ export interface IDBDialect {
    * @param val1
    * @param val2
    */
-  nullValue: (
-    val1: DataValue | ISQLExpression,
-    val2: DataValue | ISQLExpression
+  nullValue: <LeftTableDef = {}, RightTableDef = {}>(
+    val1: DataValue<LeftTableDef> | ISQLExpression,
+    val2: DataValue<RightTableDef> | ISQLExpression
   ) => ISQLExpression;
 
   /**
@@ -55,9 +55,9 @@ class NoDialect implements IDBDialect {
   namedParameter = (name: string) => name;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
-  nullValue = (
-    val1: ISQLExpression | DataValue,
-    val2: ISQLExpression | DataValue
+  nullValue = <LeftTableDef = {}, RightTableDef = {}>(
+    val1: ISQLExpression | DataValue<LeftTableDef>,
+    val2: ISQLExpression | DataValue<RightTableDef>
   ): ISQLExpression => caseWhen([{condition: val1, then: val1}], val2);
 }
 

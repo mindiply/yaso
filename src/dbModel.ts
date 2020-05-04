@@ -1,6 +1,7 @@
 import {
   IDBField,
   IDBTable,
+  ITableCalculateFieldDefinition,
   ITableDefinition,
   ITableField,
   ITableFieldDefinition
@@ -44,6 +45,9 @@ export class DBTable<DataType = any> implements IDBTable<DataType> {
   public readonly hasInsertTimestamp: boolean;
   public readonly hasUpdateTimestamp: boolean;
   public readonly fields: IDBField<DataType>[];
+  public readonly calculatedFields: Array<
+    ITableCalculateFieldDefinition<DataType>
+  >;
   public readonly ccField?: IDBField<DataType>;
   public readonly insertTimestampField?: IDBField<DataType>;
   public readonly updateTimestampField?: IDBField<DataType>;
@@ -55,6 +59,9 @@ export class DBTable<DataType = any> implements IDBTable<DataType> {
     this.name = def.name;
     this.dbName = def.dbName;
     this.fields = def.fields.map(field => new DBField(field));
+    this.calculatedFields = def.calculatedFields
+      ? def.calculatedFields.map(calcField => calcField)
+      : [];
     this.fieldsByDBName = new Map();
     this.fieldsByName = new Map();
     this.fields.forEach(dbField => {

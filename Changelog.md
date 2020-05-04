@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Added
 
-- Add calculated fields (subqueries) to table definitions
+- ~~Add calculated fields (subqueries) to table definitions~~
 - Complete coverage of SQL expressions
   - ~~In and not in statements in particular~~
   - ~~exists and not exists~~
@@ -19,6 +19,15 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.9] - 2020-05-04
+
+### Added
+- It's not possible to define calculated fields to the table
+definition, and referencing them in the select or where
+clauses of statements.
+- It's now possible to use the *aggregateWith* function to add
+aggregation operators not supplied by default, or specific
+to a datbase platform
 
 ## [0.0.8] - 2020-03-14
 

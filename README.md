@@ -23,6 +23,18 @@ You create table definitions
             dbName: "tst_cc",
             isCC: true
           }
+        ], 
+        calculatedFields: [
+          {
+            name: "calculation",
+            dbName: "exampleCalculation",
+            calculation: tblRef =>
+                selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
+                  qry
+                    .fields(count(tbl2Ref._id))
+                    .where(equals(tbl2Ref.name, tblRef.name));
+                })
+          }
         ]
       };
       interface ITst {
@@ -39,18 +51,26 @@ and later on use them to create queries
         (qry, tst) =>
             qry.fields([tst._id, tst.cc])
                 .where(
-                    equals(tst._id, prm('tstId'))
+                    and([
+                      equals(tst._id, prm('tstId')),
+                      moreThan(tst.calculation, 1)  
+                    ])
                 )
     ).toString();
     
 which produces
 
-    select
-      tst.tst_id as "_id",
-      tst.tst_cc as "cc"
-    from tst
-    where
-      tst.tst_id = $[tstId]
+      select
+        tst.tst_id as "_id",
+        tst.tst_cc as "cc"
+      from tst
+      where
+        tst.tst_id = $[tstId]
+        and (
+          select count(tst2.tst_id)
+          from tst as "tst2"
+          where tst2.tst_name = tst.tst_name
+        ) > 1
 
 
 ## Select from

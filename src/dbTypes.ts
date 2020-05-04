@@ -66,21 +66,45 @@ export interface IFromTable<T> extends ISQLExpression {
 }
 
 /**
+ * Base type for field references, used by both actual table
+ * fields and calculated fields. The key element is they need
+ * a reference table to work
+ */
+export interface IBaseFieldReference<Table = any> extends ISQLExpression {
+  readonly alias: string;
+  readonly qryTbl: ReferencedTable<Table>;
+}
+
+export interface ICalculatedFieldReference<Table = any>
+  extends IBaseFieldReference<Table> {
+  readonly field: ITableCalculateFieldDefinition<Table>;
+
+  toSelectSql: () => ISQLExpression;
+
+  /**
+   * Just refer to the field using the table alias and the field
+   * database name, without adding or using the alias. It's the
+   * same as toSql()
+   * @param qryContext
+   */
+  readValueToSql: () => ISQLExpression;
+}
+
+/**
  * Represents a reference to a specific field of a referenced
  * table within a query.
  *
- * The field can be used in different types of statements and how
- * it should be represented in sql changes.
+ * The field can be used in different types and parts of statements
+ * - in the where condition, as part of update statements, in the select
+ * part of the statement.
  */
-export interface IFieldReference<Field = any, Table = any>
-  extends ISQLExpression {
+export interface IFieldReference<Table = any>
+  extends IBaseFieldReference<Table> {
   /**
    * If the field has been aliased that alias is returned, otherwise
    * the database name of the field
    */
-  readonly alias: string;
-  field: IDBField<Field>;
-  qryTbl: ReferencedTable<Table>;
+  readonly field: IDBField<Table>;
   toSelectSql: () => ISQLExpression;
 
   /**
@@ -95,17 +119,40 @@ export interface IFieldReference<Field = any, Table = any>
   writeValueToSQL: (val?: ISQLExpression) => ISQLExpression;
 }
 
+export function isIFieldReference(obj: any): obj is IFieldReference<any> {
+  if (
+    typeof obj === 'object' &&
+    obj.field &&
+    typeof obj.toSelectSql === 'function' &&
+    typeof obj.toReferenceSql === 'function' &&
+    typeof obj.toUpdateFieldSql === 'function' &&
+    typeof obj.readValueToSql === 'function' &&
+    typeof obj.writeValueToSQL === 'function'
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export type IFieldReferenceFn<T = any> = (
   newAlias?: string
 ) => IFieldReference<T>;
-export type ReferencedTable<T> = {
-  [P in keyof Required<T>]: IFieldReferenceFn<T[P]>;
-} &
-  IFromTable<T>;
+
+export type ICalculatedFieldReferenceFn<T = any> = (
+  newAlias?: string
+) => ICalculatedFieldReference<T>;
+
+export type TableFieldsMap<TableDef> = {
+  [P in keyof Required<TableDef>]: TableDef[P] extends Function
+    ? ICalculatedFieldReference<TableDef>
+    : IFieldReferenceFn<TableDef>;
+};
+
+export type ReferencedTable<T> = TableFieldsMap<T> & IFromTable<T>;
 
 export interface ITableCalculateFieldDefinition<DataType>
   extends IBaseFieldDefinition<DataType> {
-  calculation: (qryTbl: ReferencedTable<ITable<DataType>>) => ISQLExpression;
+  calculation: (qryTbl: ReferencedTable<DataType>) => ISQLExpression;
 }
 
 export interface ITableField<T> extends ITableFieldDefinition<T> {

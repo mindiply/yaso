@@ -1,4 +1,5 @@
 import {
+  ICalculatedFieldReference,
   IDBTable,
   IFieldReference,
   IFieldReferenceFn,
@@ -84,7 +85,7 @@ export interface ISqlCaseExpression extends ISQLExpression {
 
 export interface ISqlAggregateOperator extends ISQLExpression {
   expression: ISQLExpression;
-  operator: AggregateOperator;
+  operator: AggregateOperator | string;
 }
 
 export interface ISqlListExpression extends ISQLExpression {
@@ -238,19 +239,14 @@ export interface INamedParameter extends ISQLExpression {
   parameterName: string;
 }
 
-export type DataValue =
+export type DataValue<TableDefinition = any> =
   | AtomicDataValue
-  | IFieldReferenceFn<string>
-  | IFieldReferenceFn<number>
-  | IFieldReferenceFn<boolean>
-  | IFieldReferenceFn<Date>
-  | IFieldReferenceFn<Uint8Array>
-  | IFieldReferenceFn<Id>
-  | IFieldReferenceFn<AtomicDataValue>
+  | IFieldReferenceFn<TableDefinition>
   | INamedParameter
   | null;
+
 export type TableFieldUpdates<T> = {
-  [P in keyof T]?: DataValue | ISQLExpression;
+  [P in keyof T]?: DataValue<T> | ISQLExpression;
 };
 
 export interface ISelectClause extends ISQLExpression {
@@ -462,7 +458,7 @@ export interface ISelectQry extends ISQLExpression {
 export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;
 
 export interface IFieldSelectSqlExpression<T = any> extends ISQLExpression {
-  field: IFieldReference<T>;
+  field: IFieldReference<T> | ICalculatedFieldReference<T>;
 }
 
 export interface ISqlNullValueExpression {
