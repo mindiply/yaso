@@ -234,20 +234,25 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
     | string
     | undefined
     | IToSqlFn
-    | IToBooleanFn;
+    | IToBooleanFn
+    | Map<keyof T, IFieldReference<T>>;
   public tbl: IDBTable<T>;
   public alias?: string;
+  private _fieldsReferences: Map<keyof T, IFieldReference<T>>;
 
   constructor(tbl: IDBTable<T>, alias?: string) {
     this.tbl = tbl;
+    this._fieldsReferences = new Map();
     if (alias) {
       this.alias = alias;
     }
     this.tbl.fields.forEach(field => {
-      this[field.name as string] = createFieldReferenceFn(
+      const fieldRefFn = createFieldReferenceFn(
         (this as any) as ReferencedTable<T>,
         field
       );
+      this[field.name as string] = fieldRefFn;
+      this._fieldsReferences.set(field.name, fieldRefFn());
     });
 
     if (this.tbl.calculatedFields) {
@@ -258,6 +263,10 @@ export class BaseReferenceTable<T = any> implements ISQLExpression {
         );
       }
     }
+  }
+
+  public get fields() {
+    return this._fieldsReferences;
   }
 
   public toSql = (qryContext: IQueryContext = new QueryContext()): string => {
@@ -292,4 +301,9 @@ export function createReferencedTable<T>(
   alias?: string
 ): ReferencedTable<T> {
   return (new BaseReferenceTable(dbTable, alias) as any) as ReferencedTable<T>;
+}
+
+export function isReferencedTable(obj: any): obj is ReferencedTable<any> {
+  if (obj instanceof BaseReferenceTable) return true;
+  return false;
 }

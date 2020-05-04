@@ -2,7 +2,8 @@ import indentString from 'indent-string';
 import {
   BaseReferenceTable,
   createReferencedTable,
-  FieldReference
+  FieldReference,
+  isReferencedTable
 } from './sqlTableFieldReference';
 import {createDBTbl, isDBTable} from '../dbModel';
 import {countNLines} from './utils';
@@ -21,7 +22,7 @@ import {
 import {TableFieldUpdates, ISQLOrderByField, ISelectQry} from './types';
 import {selectFrom} from './sqlQuery';
 
-export type SelectFieldRef<T> = keyof T | ISQLExpression;
+export type SelectFieldRef<T> = keyof T | ISQLExpression | ReferencedTable<T>;
 
 interface ITableQryBaseParameters<T> {
   tbl: ReferencedTable<T>;
@@ -54,6 +55,26 @@ abstract class BaseTableQuery<T> {
     qryContext: IQueryContext = new QueryContext(),
     fieldRefs: SelectFieldRef<T>[] | undefined
   ): string => {
+    const fieldsToSelect: Array<ISQLExpression | IFieldReference<T>> = [];
+    if (fieldRefs) {
+      for (const fieldRef of fieldRefs) {
+        if (typeof fieldRef === 'string') {
+          fieldsToSelect.push(
+            (((this.refTbl as any) as BaseReferenceTable<T>)[
+              fieldRef as string
+            ] as IFieldReferenceFn)()
+          );
+        }
+        if (isReferencedTable(fieldRef)) {
+          fieldsToSelect.push(
+            ...Array.from(fieldRef.fields.values()).map(ref =>
+              ref.toSelectSql()
+            )
+          );
+        }
+        fieldsToSelect.push(fieldRef as ISQLExpression);
+      }
+    }
     const selectFields = fieldRefs
       ? fieldRefs.map(fieldRef => {
           if (typeof fieldRef === 'string') {
@@ -128,7 +149,7 @@ const tableSelectQry = <T>(
             fieldRef as string
           ] as IFieldReferenceFn;
         }
-        return fieldRef as ISQLExpression;
+        return fieldRef as ISQLExpression | ReferencedTable<T>;
       })
     );
   }
@@ -389,7 +410,8 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
     | string
     | undefined
     | IToSqlFn
-    | MemberFn;
+    | MemberFn
+    | Map<keyof T, IFieldReference<T>>;
 
   public insertQry = (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>

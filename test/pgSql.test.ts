@@ -130,6 +130,19 @@ from tst
 where tst.tst_name = $[name]`);
   });
 
+  test('should select all fields and a simple calculated field', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry.fields([tst, tst.simpleCF]).where(equals(tst.name, prm('name')));
+    }).toSql();
+    expect(sql).toBe(`select
+  tst.tst_id as "_id",
+  tst.tst_cc as "cc",
+  tst.tst_name as "name",
+  (tst.tst_cc + tst.tst_cc) as "simpleCF"
+from tst
+where tst.tst_name = $[name]`);
+  });
+
   test('should select id and complex calculated field', () => {
     const sql = selectFrom(tstTbl, (qry, tst) => {
       qry.fields([tst._id, tst.complexCF]).where(equals(tst.name, prm('name')));

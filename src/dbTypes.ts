@@ -63,6 +63,7 @@ export interface IFromTable<T> extends ISQLExpression {
   alias?: string;
   tbl: IDBTable<T>;
   toReferenceSql: IToSqlFn;
+  readonly fields: Map<keyof T, IFieldReference<T>>;
 }
 
 /**

@@ -21,7 +21,7 @@ import {
   SelectFields,
   SelectQryTablePrm
 } from './types';
-import {BaseReferenceTable} from './sqlTableFieldReference';
+import {BaseReferenceTable, isReferencedTable} from './sqlTableFieldReference';
 import {createSelectStatement} from './statements';
 import {dbDialect} from '../db';
 import {
@@ -69,7 +69,7 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
     this.selectFields = flds.map(fld =>
       typeof fld === 'function'
         ? (fld() as IFieldReference)
-        : (fld as ISQLExpression)
+        : (fld as ISQLExpression | ReferencedTable<any>)
     );
     return this;
   };
@@ -107,24 +107,39 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
   public toString = (context?: IQueryContext): string => {
     const queryContext = context || new QueryContext();
     let selectStatement = createSelectStatement(this._maxRows);
-    selectStatement.addClause(
-      'select',
-      selectClause(
-        this.selectFields
-          ? this.selectFields
-          : Object.values(this.from).reduce<ISQLExpression[]>(
-              (fields, selectTable) =>
-                fields.concat(
-                  selectTable.tbl.fields.map(field =>
-                    (selectTable[
-                      field.name as string
-                    ] as IFieldReferenceFn)().toSelectSql()
-                  )
-                ),
-              []
+    if (this.selectFields) {
+      const fieldInSelect: Array<IFieldReference | ISQLExpression> = [];
+      for (const selectField of this.selectFields) {
+        if (isReferencedTable(selectField)) {
+          fieldInSelect.push(
+            ...Array.from(selectField.fields.values()).map(fieldRef =>
+              fieldRef.toSelectSql()
             )
-      )
-    );
+          );
+        } else {
+          fieldInSelect.push(selectField);
+        }
+      }
+      selectStatement.addClause('select', selectClause(fieldInSelect));
+    } else {
+      selectStatement.addClause(
+        'select',
+        selectClause(
+          Object.values(this.from).reduce<ISQLExpression[]>(
+            (fields, selectTable) =>
+              fields.concat(
+                selectTable.tbl.fields.map(field =>
+                  (selectTable[
+                    field.name as string
+                  ] as IFieldReferenceFn)().toSelectSql()
+                )
+              ),
+            []
+          )
+        )
+      );
+    }
+
     selectStatement.addClause(
       'from',
       fromClause(this.from, this.joins ? [this.joins] : [])

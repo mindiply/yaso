@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Complete coverage of SQL expressions
   - ~~In and not in statements in particular~~
   - ~~exists and not exists~~
+  - group by clause
   - union of select statements
 - Ability to work with sql statements as sql expressions in join, from and wheres
 - Refactor SQL dialect specific code to be in unique place and
@@ -19,10 +20,18 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.10] - 2020-05-04
+
+### Added
+- In the list of fields for select statements you can now
+add a referenced table object, and all the table fields
+for the table will be added. Useful if you need all the fields
+from a table plus one or more calculated fields.
+
 ## [0.0.9] - 2020-05-04
 
 ### Added
-- It's not possible to define calculated fields to the table
+- It's now possible to define calculated fields to the table
 definition, and referencing them in the select or where
 clauses of statements.
 - It's now possible to use the *aggregateWith* function to add

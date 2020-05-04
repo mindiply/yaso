@@ -922,16 +922,18 @@ class SelectClause implements ISelectClause {
 
   public toSql = (qryContext: IQueryContext = new QueryContext()) => {
     this.selectFields.sort((a, b) => {
-      const aAlias = isFieldReference(a)
-        ? a.alias
-        : isFieldSelectSqlExpression(a)
-        ? a.field.alias
-        : 'a';
-      const bAlias = isFieldReference(b)
-        ? b.alias
-        : isFieldSelectSqlExpression(b)
-        ? b.field.alias
-        : 'b';
+      const aAlias =
+        isFieldReference(a) || isCalculateFieldReference(a)
+          ? a.alias
+          : isFieldSelectSqlExpression(a)
+          ? a.field.alias
+          : 'a';
+      const bAlias =
+        isFieldReference(b) || isCalculateFieldReference(b)
+          ? b.alias
+          : isFieldSelectSqlExpression(b)
+          ? b.field.alias
+          : 'b';
       if ((aAlias || '') < (bAlias || '')) {
         return -1;
       }
@@ -1157,5 +1159,9 @@ class ParenthesizedExpression implements ISQLExpression {
   };
 }
 
+/**
+ * Wraps a sql expression in parenthesis
+ * @param sqlExpression
+ */
 export const parenthesized = (sqlExpression: ISQLExpression): ISQLExpression =>
   new ParenthesizedExpression(sqlExpression);

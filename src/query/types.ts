@@ -283,8 +283,13 @@ export interface IQryCallback {
   ): void;
 }
 
-export type SelectFields = Array<IFieldReference | ISQLExpression>;
-export type SelectFieldPrm<T> = IFieldReferenceFn<T> | ISQLExpression;
+export type SelectFields = Array<
+  IFieldReference | ISQLExpression | ReferencedTable<any>
+>;
+export type SelectFieldPrm<T> =
+  | IFieldReferenceFn<T>
+  | ISQLExpression
+  | ReferencedTable<T>;
 
 export interface IFieldsMemberFn<ReturnType> {
   <T>(field: SelectFieldPrm<T>): ReturnType;
