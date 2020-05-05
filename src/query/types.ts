@@ -437,10 +437,10 @@ export interface ISelectQry extends ISQLExpression {
    * @param p5
    */
   join: <T1, T2>(
-    p1: IFieldReferenceFn<T1> | ISQLExpression,
-    p2: IFieldReferenceFn<T1 | T2> | ISQLExpression,
-    p3?: JoinType | IFieldReferenceFn<T1 | T2> | ISQLExpression,
-    p4?: JoinType | IFieldReferenceFn<T2>,
+    p1: IFieldReferenceFn | ISQLExpression,
+    p2: IFieldReferenceFn | ISQLExpression,
+    p3?: JoinType | IFieldReferenceFn | ISQLExpression,
+    p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) => ISelectQry;
 
@@ -470,3 +470,13 @@ export interface ISqlNullValueExpression {
   val1: ISQLExpression;
   val2: ISQLExpression;
 }
+
+/**
+ * Utility mapped type for table definitions, that normalizes a table definition,
+ * including the calculated fields definitions
+ */
+export type ResolvedTableDef<TableDef> = {
+  [P in keyof TableDef]: TableDef[P] extends (...args: any[]) => infer R
+    ? R
+    : TableDef[P];
+};

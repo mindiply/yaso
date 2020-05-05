@@ -20,6 +20,12 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.11] - 2020-05-05
+
+### Fixes
+- Types for join not working with field references anymore
+- build error in 0.0.10
+
 ## [0.0.10] - 2020-05-04
 
 ### Added

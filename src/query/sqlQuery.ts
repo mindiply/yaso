@@ -74,18 +74,18 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
     return this;
   };
 
-  public orderBy: IOrderByFn<SelectQry> = (
+  public orderBy: IOrderByFn<ISelectQry> = (
     fields: ISQLOrderByField | ISQLOrderByField[]
-  ) => {
+  ): ISelectQry => {
     this.orderByExpression = orderBy(fields);
     return this;
   };
 
-  public join = <T1, T2>(
-    p1: IFieldReferenceFn<T1> | ISQLExpression,
-    p2: IFieldReferenceFn<T1 | T2> | ISQLExpression,
-    p3: JoinType | IFieldReferenceFn<T1 | T2> | ISQLExpression = JoinType.inner,
-    p4?: JoinType | IFieldReferenceFn<T2>,
+  public join = (
+    p1: IFieldReferenceFn | ISQLExpression,
+    p2: IFieldReferenceFn | ISQLExpression,
+    p3?: JoinType | IFieldReferenceFn | ISQLExpression,
+    p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
