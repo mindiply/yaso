@@ -101,7 +101,7 @@ export class PgDialect implements IDBDialect {
     return selectStatement;
   };
 
-  nullValue = <LeftTableDef = {}, RightTableDef = {}>(
+  nullValue = <LeftTableDef = any, RightTableDef = any>(
     val1: ISQLExpression | DataValue<LeftTableDef>,
     val2: ISQLExpression | DataValue<RightTableDef>
   ): ISQLExpression =>

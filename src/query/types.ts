@@ -88,6 +88,12 @@ export interface ISqlAggregateOperator extends ISQLExpression {
   operator: AggregateOperator | string;
 }
 
+/**
+ * Represents a list of sql expressions separated by a comma
+ * and within brackets
+ *
+ * (expr1, expr2, ..., exprn)
+ */
 export interface ISqlListExpression extends ISQLExpression {
   listItems: ISQLExpression[];
 }
@@ -106,10 +112,10 @@ export enum InNotInOperator {
   notIn = 'not in'
 }
 
-export interface IInNotInStatement {
+export interface IInNotInStatement extends ISQLExpression {
   type: InNotInOperator;
   left: ISQLExpression;
-  right: ISQLExpression;
+  right: ISqlListExpression | ISelectQry;
 }
 
 export enum MathBinaryOperator {

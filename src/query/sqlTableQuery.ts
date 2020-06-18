@@ -396,7 +396,7 @@ type QueryReferenceTable<T> = ReferencedTable<T> & {
   ) => string;
   selectQry: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
-  ) => ISQLExpression;
+  ) => ISelectQry;
   selectQrySql: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
   ) => string;

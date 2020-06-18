@@ -160,10 +160,18 @@ export function createFieldReferenceFn<T>(
   field: IDBField<T>,
   alias?: string
 ): IFieldReferenceFn<T> {
-  const ref: IFieldReference<T> = new FieldReference(qryTbl, field, alias);
-  return (): IFieldReference<T> => {
+  let ref: IFieldReference<T> = new FieldReference(qryTbl, field, alias);
+  const fn = (newAlias?: string) => {
+    if (newAlias && newAlias !== ref.alias) {
+      ref = new FieldReference(qryTbl, field, alias);
+    }
     return ref;
   };
+  fn.toSql = (qryContext?: IQueryContext): string => {
+    return ref.toSql(qryContext);
+  };
+  fn.isSimpleValue = () => ref.isSimpleValue();
+  return fn;
 }
 
 interface IToBooleanFn {
@@ -215,15 +223,21 @@ export function createCalcFieldReferenceFn<T>(
   qryTbl: ReferencedTable<T>,
   calcField: ITableCalculateFieldDefinition<T>,
   alias?: string
-): () => ICalculatedFieldReference<T> {
-  const ref: ICalculatedFieldReference<T> = new CalculateFieldReference(
+): ICalculatedFieldReferenceFn<T> {
+  let ref: ICalculatedFieldReference<T> = new CalculateFieldReference(
     qryTbl,
     calcField,
     alias
   );
-  return (): ICalculatedFieldReference<T> => {
+  const fn = (newAlias?: string): ICalculatedFieldReference<T> => {
+    if (newAlias && newAlias !== ref.alias) {
+      ref = new CalculateFieldReference(qryTbl, calcField, alias);
+    }
     return ref;
   };
+  fn.toSql = (qryContext?: IQueryContext): string => ref.toSql(qryContext);
+  fn.isSimpleValue = (): boolean => ref.isSimpleValue();
+  return fn;
 }
 
 export class BaseReferenceTable<T = any> implements ISQLExpression {

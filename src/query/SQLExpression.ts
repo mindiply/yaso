@@ -28,7 +28,8 @@ import {
   TableFieldUpdates,
   MAX_SINGLE_LINE_STATEMENT_LENGTH,
   ISqlCaseExpression,
-  ISqlCaseBranch
+  ISqlCaseBranch,
+  ISelectQry
 } from './types';
 import {
   FieldReference,
@@ -91,13 +92,6 @@ export class AliasSqlExpression extends BaseSqlExpression
 
 export const alias = (expression: ISQLExpression, alias: string) =>
   new AliasSqlExpression(expression, alias);
-
-export function isSqlExpression(obj: any): obj is ISQLExpression {
-  if (obj instanceof BaseSqlExpression || (obj && obj.toSql)) {
-    return true;
-  }
-  return false;
-}
 
 export class NamedParameter extends BaseSqlExpression
   implements INamedParameter {
@@ -176,7 +170,7 @@ export class QueryContext implements IQueryContext {
   };
 }
 
-class SQLValue<TableDef = {}> extends BaseSqlExpression
+class SQLValue<TableDef = any> extends BaseSqlExpression
   implements ISQLExpression {
   protected readonly value: DataValue<TableDef>;
   constructor(data: DataValue<TableDef>) {
@@ -235,7 +229,7 @@ class SQLValue<TableDef = {}> extends BaseSqlExpression
   };
 }
 
-export function value<TableDef = {}>(
+export function value<TableDef = any>(
   value: DataValue<TableDef> | ISQLExpression
 ): ISQLExpression {
   if (isSqlExpression(value)) return value;
@@ -349,7 +343,7 @@ export const mod = <LeftTableDef = any, RightTableDef = any>(
   return new SQLMathBinaryExpression(MathBinaryOperator.modulo, left, right);
 };
 
-class IsNullWhereCond<TableDef = {}> extends BaseSqlExpression
+class IsNullWhereCond<TableDef = any> extends BaseSqlExpression
   implements IWhereNullCond {
   public operand: ISQLExpression;
   public type: NullComparatorType;
@@ -377,13 +371,13 @@ class IsNullWhereCond<TableDef = {}> extends BaseSqlExpression
   };
 }
 
-export function isNull<TableDef = {}>(
+export function isNull<TableDef = any>(
   field: ISQLExpression | DataValue<TableDef>
 ) {
   return new IsNullWhereCond(field, NullComparatorType.isNull);
 }
 
-export function isNotNull<TableDef = {}>(
+export function isNotNull<TableDef = any>(
   field: ISQLExpression | DataValue<TableDef>
 ) {
   return new IsNullWhereCond(field, NullComparatorType.isNotNull);
@@ -514,7 +508,7 @@ export function not(operand: ISQLExpression) {
   return new LogicalOperatorCond(LogicalOperator.NOT, operand);
 }
 
-class SQLAggregateOperator<TableDef = {}> extends BaseSqlExpression
+class SQLAggregateOperator<TableDef = any> extends BaseSqlExpression
   implements ISqlAggregateOperator {
   public expression: ISQLExpression;
   public operator: AggregateOperator | string;
@@ -537,24 +531,24 @@ class SQLAggregateOperator<TableDef = {}> extends BaseSqlExpression
     `${this.operator}${parenthesizeSql(this.expression.toSql(qryContext))}`;
 }
 
-export const aggregateWith = <TableDef = {}>(
+export const aggregateWith = <TableDef = any>(
   aggregatorOperator: string,
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(aggregatorOperator, expr);
 
-export const count = <TableDef = {}>(
+export const count = <TableDef = any>(
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(AggregateOperator.count, expr);
 
-export const min = <TableDef = {}>(
+export const min = <TableDef = any>(
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(AggregateOperator.min, expr);
 
-export const max = <TableDef = {}>(
+export const max = <TableDef = any>(
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(AggregateOperator.max, expr);
 
-export const sum = <TableDef = {}>(
+export const sum = <TableDef = any>(
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(AggregateOperator.sum, expr);
 
@@ -595,12 +589,12 @@ export const list = (
 class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
   public type: InNotInOperator;
   public left: ISQLExpression;
-  public right: ISQLExpression;
+  public right: ISqlListExpression | ISelectQry;
 
   constructor(
     left: ISQLExpression,
     type: InNotInOperator,
-    right: ISQLExpression
+    right: ISqlListExpression | ISelectQry
   ) {
     super();
     this.type = type;
@@ -614,12 +608,12 @@ class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
 
 export const sqlIn = (
   left: ISQLExpression,
-  right: ISqlListExpression
+  right: ISqlListExpression | ISelectQry
 ): IInNotInStatement => new InNotInStatement(left, InNotInOperator.in, right);
 
 export const notIn = (
   left: ISQLExpression,
-  right: ISqlListExpression
+  right: ISqlListExpression | ISelectQry
 ): IInNotInStatement =>
   new InNotInStatement(left, InNotInOperator.notIn, right);
 
@@ -873,6 +867,17 @@ export interface ISqlValueFormattingFunction {
   ): string;
 }
 
+export function isSqlExpression(obj: any): obj is ISQLExpression {
+  if (typeof obj === 'object') {
+    return Boolean(
+      obj instanceof BaseSqlExpression ||
+        (typeof obj.toSql === 'function' &&
+          typeof obj.isSimpleValue === 'function')
+    );
+  }
+  return false;
+}
+
 export class FormattedSqlValueExpression<TableDef = any>
   extends BaseSqlExpression
   implements ISQLExpression {
@@ -887,13 +892,13 @@ export class FormattedSqlValueExpression<TableDef = any>
     this.formattingFunction = formattingFunction;
     this.encapsulatedValues = Array.isArray(values)
       ? values.map(value =>
-          (value as ISQLExpression).toSql
-            ? (value as ISQLExpression)
+          isSqlExpression(value)
+            ? value
             : new SQLValue(value as DataValue<TableDef>)
         )
       : [
-          (values as ISQLExpression).toSql
-            ? (values as ISQLExpression)
+          isSqlExpression(values)
+            ? values
             : new SQLValue(values as DataValue<TableDef>)
         ];
   }
@@ -1063,7 +1068,7 @@ export const whereClause = (
   return new WhereClause(rootWhereExpression);
 };
 
-class CaseExpression<CondTableDef = {}, ThenTableDef = {}, ElseTableDef = {}>
+class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
   extends BaseSqlExpression
   implements ISqlCaseExpression {
   public whenBranches: ISqlCaseBranch[];
@@ -1113,9 +1118,9 @@ class CaseExpression<CondTableDef = {}, ThenTableDef = {}, ElseTableDef = {}>
 }
 
 export function caseWhen<
-  CondTableDef = {},
-  ThenTableDef = {},
-  ElseTableDef = {}
+  CondTableDef = any,
+  ThenTableDef = any,
+  ElseTableDef = any
 >(
   whenBranches: Array<{
     condition: ISQLExpression | DataValue<CondTableDef>;
@@ -1136,7 +1141,7 @@ export function caseWhen<
  * @param val1
  * @param val2
  */
-export function nullValue<LeftTableDef = {}, RightTableDef = {}>(
+export function nullValue<LeftTableDef = any, RightTableDef = any>(
   val1: ISQLExpression | DataValue<LeftTableDef>,
   val2: ISQLExpression | DataValue<RightTableDef>
 ): ISQLExpression {

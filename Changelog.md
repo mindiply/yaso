@@ -20,6 +20,14 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+
+## [0.0.12] - 2020-06-18
+
+### Fixes
+- FieldReferenceFn is now a SQLExpression itself
+- sqlIn and sqlNotIn accept only a list expression or a select expression
+- Linting fixes after packages update
+
 ## [0.0.11] - 2020-05-05
 
 ### Fixes

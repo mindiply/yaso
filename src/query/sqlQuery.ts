@@ -58,7 +58,7 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
   }
 
   public executeCallback = (cb: IQryCallback): void =>
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     cb(this, ...this.from);
 
@@ -88,7 +88,7 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
     p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     this.joins = join(p1, p2!, p3!, p4, p5);
     return this;

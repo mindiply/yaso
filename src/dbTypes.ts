@@ -135,16 +135,18 @@ export function isIFieldReference(obj: any): obj is IFieldReference<any> {
   return false;
 }
 
-export type IFieldReferenceFn<T = any> = (
-  newAlias?: string
-) => IFieldReference<T>;
+export interface IFieldReferenceFn<T = any> extends ISQLExpression {
+  (newAlias?: string): IFieldReference<T>;
+}
 
-export type ICalculatedFieldReferenceFn<T = any> = (
-  newAlias?: string
-) => ICalculatedFieldReference<T>;
+export interface ICalculatedFieldReferenceFn<T = any> extends ISQLExpression {
+  (newAlias?: string): ICalculatedFieldReference<T>;
+}
 
 export type TableFieldsMap<TableDef> = {
-  [P in keyof Required<TableDef>]: TableDef[P] extends Function
+  [P in keyof Required<
+    TableDef
+  >]: TableDef[P] extends ITableCalculateFieldDefinition<any>
     ? ICalculatedFieldReference<TableDef>
     : IFieldReferenceFn<TableDef>;
 };
