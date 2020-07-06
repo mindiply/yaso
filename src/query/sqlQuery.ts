@@ -1,5 +1,4 @@
 import {
-  BaseSqlExpression,
   fromClause,
   join,
   orderBy,
@@ -33,7 +32,7 @@ import {
   ReferencedTable
 } from '../dbTypes';
 
-export class SelectQry extends BaseSqlExpression implements ISelectQry {
+export class SelectQry implements ISelectQry {
   protected from: ReferencedTable<any>[];
   protected selectFields?: SelectFields;
   protected rootWhere?: ISQLExpression;
@@ -45,7 +44,6 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
     tables: SelectQryTablePrm<any> | SelectQryTablePrm<any>[],
     maxRows?: number
   ) {
-    super();
     if (!tables) {
       throw new Error('Expected at least one table');
     }
@@ -159,6 +157,8 @@ export class SelectQry extends BaseSqlExpression implements ISelectQry {
   };
 
   public toSql = (qryContext?: IQueryContext) => this.toString(qryContext);
+
+  public isSimpleValue = () => false;
 }
 
 export function selectFrom<T>(

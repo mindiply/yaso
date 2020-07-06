@@ -21,6 +21,12 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.13] - 2020-07-06
+
+### Added
+- **concat** binary operator for string concatenation
+- **binaryOperator** allows injecting binary operators not offered by the implementation
+
 ## [0.0.12] - 2020-06-18
 
 ### Fixes

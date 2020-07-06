@@ -17,8 +17,11 @@ import {
   max,
   add,
   count,
-  aggregateWith
+  aggregateWith,
+  concat,
+  binaryOperator
 } from '../src';
+import exp = require('constants');
 
 interface ITst {
   _id: string;
@@ -335,5 +338,15 @@ limit 10`;
         .maxRows(10);
     }).toString();
     expect(sql).toBe(expectedSql);
+  });
+
+  test('Generic binary operator and concat', () => {
+    const sql = tbl(tstTbl).selectQry(tst => ({
+      fields: [concat('test_', tst._id)],
+      where: equals(tst.name, binaryOperator('what', '+=+', 'op'))
+    })).toSql();
+    expect(sql).toBe(`select 'test_' || tst.tst_id
+from tst
+where tst.tst_name = 'what' +=+ 'op'`);
   });
 });

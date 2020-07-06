@@ -1,5 +1,5 @@
 import {
-  BaseSqlExpression,
+  BinaryOperatorExpression,
   FormattedSqlValueExpression,
   QueryContext,
   rawSql,
@@ -31,12 +31,11 @@ interface ICoalesceSqlExpression {
   expressions: ISQLExpression[];
 }
 
-class CoalesceSqlExpression<LeftTableDef = any> extends BaseSqlExpression
+class CoalesceSqlExpression<LeftTableDef = any>
   implements ICoalesceSqlExpression {
   public expressions: ISQLExpression[];
 
   constructor(...expressions: Array<DataValue<LeftTableDef> | ISQLExpression>) {
-    super();
     this.expressions = expressions.map(expression => value(expression));
   }
 
@@ -106,6 +105,11 @@ export class PgDialect implements IDBDialect {
     val2: ISQLExpression | DataValue<RightTableDef>
   ): ISQLExpression =>
     new CoalesceSqlExpression(val1, val2 as DataValue<LeftTableDef>);
+
+  concat = <LeftTableDef = any, RightTableDef = any>(
+    v1: ISQLExpression | DataValue<LeftTableDef>,
+    v2: ISQLExpression | DataValue<LeftTableDef>
+  ) => new BinaryOperatorExpression(v1, '||', v2);
 }
 
 export const usePg = () => {

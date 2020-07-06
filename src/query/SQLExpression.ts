@@ -50,14 +50,7 @@ type SQLTableFieldUpdates<T> = {
   [P in keyof T]?: ISQLExpression;
 };
 
-export abstract class BaseSqlExpression implements ISQLExpression {
-  isSimpleValue: () => boolean = () => false;
-
-  toSql = () => '';
-}
-
-export class NullExpression extends BaseSqlExpression
-  implements ISQLExpression {
+export class NullExpression implements ISQLExpression {
   isSimpleValue = () => true;
 
   toSql = () => 'NULL';
@@ -65,13 +58,11 @@ export class NullExpression extends BaseSqlExpression
 
 export const sqlNull = () => new NullExpression();
 
-export class AliasSqlExpression extends BaseSqlExpression
-  implements ISqlAliasExpression {
+export class AliasSqlExpression implements ISqlAliasExpression {
   protected readonly _alias: string;
   public expression: ISQLExpression;
 
   constructor(expression: ISQLExpression, alias: string) {
-    super();
     this.expression = expression;
     this._alias = alias;
   }
@@ -93,12 +84,10 @@ export class AliasSqlExpression extends BaseSqlExpression
 export const alias = (expression: ISQLExpression, alias: string) =>
   new AliasSqlExpression(expression, alias);
 
-export class NamedParameter extends BaseSqlExpression
-  implements INamedParameter {
+export class NamedParameter implements INamedParameter {
   public parameterName: string;
 
   constructor(parameterName: string) {
-    super();
     this.parameterName = parameterName;
   }
 
@@ -170,11 +159,9 @@ export class QueryContext implements IQueryContext {
   };
 }
 
-class SQLValue<TableDef = any> extends BaseSqlExpression
-  implements ISQLExpression {
+class SQLValue<TableDef = any> implements ISQLExpression {
   protected readonly value: DataValue<TableDef>;
   constructor(data: DataValue<TableDef>) {
-    super();
     this.value = data;
   }
 
@@ -241,12 +228,11 @@ export const transformFieldUpdatesToSql = <T>(
 ): SQLTableFieldUpdates<T> => {
   const sqlChanges: SQLTableFieldUpdates<T> = {};
   Object.entries(changes).forEach(([fieldName, fieldValue]) => {
-    sqlChanges[fieldName as keyof T] =
-      fieldValue instanceof BaseSqlExpression
-        ? fieldValue
-        : fieldValue === undefined
-        ? undefined
-        : new SQLValue(fieldValue as DataValue<T>);
+    sqlChanges[fieldName as keyof T] = isSqlExpression(fieldValue)
+      ? fieldValue
+      : fieldValue === undefined
+      ? undefined
+      : new SQLValue(fieldValue as DataValue<T>);
   });
   return sqlChanges;
 };
@@ -255,46 +241,40 @@ export function prm(name: string): NamedParameter {
   return new NamedParameter(name);
 }
 
-export class SQLMathBinaryExpression<LeftTableDef = any, RightTableDef = any>
-  extends BaseSqlExpression
-  implements ISQLMathExpression {
-  public readonly left: ISQLExpression;
-  public readonly right: ISQLExpression;
-  public readonly operator: MathBinaryOperator;
+export class BinaryOperatorExpression<
+  OperatorType extends string = string,
+  LeftTableDef = any,
+  RightTableDef = any
+> implements ISQLExpression {
+  public left: ISQLExpression;
+  public operator: OperatorType;
+  public right: ISQLExpression;
 
   constructor(
-    operator: MathBinaryOperator,
     left: DataValue<LeftTableDef> | ISQLExpression,
+    operator: OperatorType,
     right: DataValue<RightTableDef> | ISQLExpression
   ) {
-    super();
-    this.left =
-      left instanceof BaseSqlExpression
-        ? left
-        : new SQLValue(left as DataValue<LeftTableDef>);
-    this.right =
-      right instanceof BaseSqlExpression
-        ? right
-        : new SQLValue(right as DataValue<RightTableDef>);
+    this.left = isSqlExpression(left)
+      ? left
+      : new SQLValue(left as DataValue<LeftTableDef>);
+    this.right = isSqlExpression(right)
+      ? right
+      : new SQLValue(right as DataValue<RightTableDef>);
     this.operator = operator;
   }
 
-  public isSimpleValue = () => {
-    if (this.left.isSimpleValue() && this.right.isSimpleValue()) {
-      return true;
-    }
-    return false;
-  };
+  public isSimpleValue = () =>
+    Boolean(this.left.isSimpleValue() && this.right.isSimpleValue());
 
-  public toSql = (qryContext: IQueryContext = new QueryContext()) =>
-    infixString(qryContext, this.left, this.operator, this.right);
+  public toSql = (qryContext: IQueryContext = new QueryContext()): string =>
+    infixString(qryContext, this.left, this.operator as string, this.right);
 }
 
-export class RawSQL extends BaseSqlExpression {
+export class RawSQL implements ISQLExpression {
   protected readonly rawSql: string;
   protected readonly _isSimpleValue: boolean;
   constructor(rawSql: string, isSimpleValue?: boolean) {
-    super();
     this.rawSql = rawSql;
     this._isSimpleValue = Boolean(isSimpleValue || false);
   }
@@ -311,40 +291,39 @@ export const rawSql = (rawSql: string, isSimpleValue = false): RawSQL => {
 export const add = <LeftTableDef = any, RightTableDef = any>(
   left: ISQLExpression | DataValue<LeftTableDef>,
   right: ISQLExpression | DataValue<RightTableDef>
-): SQLMathBinaryExpression => {
-  return new SQLMathBinaryExpression(MathBinaryOperator.add, left, right);
+): ISQLMathExpression => {
+  return new BinaryOperatorExpression(left, MathBinaryOperator.add, right);
 };
 
 export const sub = <LeftTableDef = any, RightTableDef = any>(
   left: ISQLExpression | DataValue<LeftTableDef>,
   right: ISQLExpression | DataValue<RightTableDef>
-): SQLMathBinaryExpression => {
-  return new SQLMathBinaryExpression(MathBinaryOperator.subtract, left, right);
+): ISQLMathExpression => {
+  return new BinaryOperatorExpression(left, MathBinaryOperator.subtract, right);
 };
 
 export const mul = <LeftTableDef = any, RightTableDef = any>(
   left: ISQLExpression | DataValue<LeftTableDef>,
   right: ISQLExpression | DataValue<RightTableDef>
-): SQLMathBinaryExpression => {
-  return new SQLMathBinaryExpression(MathBinaryOperator.multiply, left, right);
+): ISQLMathExpression => {
+  return new BinaryOperatorExpression(left, MathBinaryOperator.multiply, right);
 };
 
 export const div = <LeftTableDef = any, RightTableDef = any>(
   left: ISQLExpression | DataValue<LeftTableDef>,
   right: ISQLExpression | DataValue<RightTableDef>
-): SQLMathBinaryExpression => {
-  return new SQLMathBinaryExpression(MathBinaryOperator.divide, left, right);
+): ISQLMathExpression => {
+  return new BinaryOperatorExpression(left, MathBinaryOperator.divide, right);
 };
 
 export const mod = <LeftTableDef = any, RightTableDef = any>(
   left: ISQLExpression | DataValue<LeftTableDef>,
   right: ISQLExpression | DataValue<RightTableDef>
-): SQLMathBinaryExpression => {
-  return new SQLMathBinaryExpression(MathBinaryOperator.modulo, left, right);
+): ISQLMathExpression => {
+  return new BinaryOperatorExpression(left, MathBinaryOperator.modulo, right);
 };
 
-class IsNullWhereCond<TableDef = any> extends BaseSqlExpression
-  implements IWhereNullCond {
+class IsNullWhereCond<TableDef = any> implements IWhereNullCond {
   public operand: ISQLExpression;
   public type: NullComparatorType;
 
@@ -352,11 +331,9 @@ class IsNullWhereCond<TableDef = any> extends BaseSqlExpression
     operand: ISQLExpression | DataValue<TableDef>,
     type = NullComparatorType.isNull
   ) {
-    super();
-    this.operand =
-      operand instanceof BaseSqlExpression
-        ? operand
-        : new SQLValue(operand as DataValue<TableDef>);
+    this.operand = isSqlExpression(operand)
+      ? operand
+      : new SQLValue(operand as DataValue<TableDef>);
     this.type = type;
   }
 
@@ -383,39 +360,7 @@ export function isNotNull<TableDef = any>(
   return new IsNullWhereCond(field, NullComparatorType.isNotNull);
 }
 
-export class BinaryOperatorExpression<LeftTableDef = any, RightTableDef = any>
-  extends BaseSqlExpression
-  implements ISqlBinaryComparison {
-  public left: ISQLExpression;
-  public operator: BinaryComparator;
-  public right: ISQLExpression;
-
-  constructor(
-    left: DataValue<LeftTableDef> | ISQLExpression,
-    operator: BinaryComparator,
-    right: DataValue<RightTableDef> | ISQLExpression
-  ) {
-    super();
-    this.left =
-      left instanceof BaseSqlExpression
-        ? left
-        : new SQLValue(left as DataValue<LeftTableDef>);
-    this.operator = operator;
-    this.right =
-      right instanceof BaseSqlExpression
-        ? right
-        : new SQLValue(right as DataValue<RightTableDef>);
-  }
-
-  public isSimpleValue = () =>
-    Boolean(this.left.isSimpleValue() && this.right.isSimpleValue());
-
-  public toSql = (qryContext: IQueryContext = new QueryContext()): string =>
-    infixString(qryContext, this.left, this.operator, this.right);
-}
-
-export class LogicalOperatorCond extends BaseSqlExpression
-  implements ISqlLogicalExpression {
+export class LogicalOperatorCond implements ISqlLogicalExpression {
   public operator: LogicalOperator;
   public operands: ISQLExpression[];
 
@@ -423,13 +368,14 @@ export class LogicalOperatorCond extends BaseSqlExpression
     operator: LogicalOperator,
     operands: ISQLExpression | ISQLExpression[]
   ) {
-    super();
     this.operator = operator;
     this.operands = Array.isArray(operands) ? operands : [operands];
     if (this.operands.length < 1) {
       throw new Error('Creating a logical operator without conditions');
     }
   }
+
+  public isSimpleValue = () => false;
 
   public toSql = (qryContext?: IQueryContext) => {
     if (this.operator === LogicalOperator.NOT) {
@@ -508,8 +454,7 @@ export function not(operand: ISQLExpression) {
   return new LogicalOperatorCond(LogicalOperator.NOT, operand);
 }
 
-class SQLAggregateOperator<TableDef = any> extends BaseSqlExpression
-  implements ISqlAggregateOperator {
+class SQLAggregateOperator<TableDef = any> implements ISqlAggregateOperator {
   public expression: ISQLExpression;
   public operator: AggregateOperator | string;
 
@@ -517,12 +462,10 @@ class SQLAggregateOperator<TableDef = any> extends BaseSqlExpression
     type: AggregateOperator | string,
     expression: ISQLExpression | DataValue<TableDef>
   ) {
-    super();
     this.operator = type;
-    this.expression =
-      expression instanceof BaseSqlExpression
-        ? expression
-        : new SQLValue(expression as DataValue<TableDef>);
+    this.expression = isSqlExpression(expression)
+      ? expression
+      : new SQLValue(expression as DataValue<TableDef>);
   }
 
   public isSimpleValue = () => true;
@@ -552,12 +495,10 @@ export const sum = <TableDef = any>(
   expr: ISQLExpression | DataValue<TableDef>
 ) => new SQLAggregateOperator(AggregateOperator.sum, expr);
 
-class SQLListExpression extends BaseSqlExpression
-  implements ISqlListExpression {
+class SQLListExpression implements ISqlListExpression {
   public listItems: ISQLExpression[];
 
   constructor(items: ISQLExpression[]) {
-    super();
     this.listItems = items;
   }
 
@@ -581,12 +522,12 @@ export const list = (
 ): ISqlListExpression => {
   return new SQLListExpression(
     items.map(item =>
-      item instanceof BaseSqlExpression ? item : new SQLValue(item as DataValue)
+      isSqlExpression(item) ? item : new SQLValue(item as DataValue)
     )
   );
 };
 
-class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
+class InNotInStatement implements IInNotInStatement {
   public type: InNotInOperator;
   public left: ISQLExpression;
   public right: ISqlListExpression | ISelectQry;
@@ -596,11 +537,12 @@ class InNotInStatement extends BaseSqlExpression implements IInNotInStatement {
     type: InNotInOperator,
     right: ISqlListExpression | ISelectQry
   ) {
-    super();
     this.type = type;
     this.left = left;
     this.right = right;
   }
+
+  public isSimpleValue = () => false;
 
   public toSql = (qryContext: IQueryContext = new QueryContext()) =>
     infixString(qryContext, this.left, this.type, this.right);
@@ -617,11 +559,10 @@ export const notIn = (
 ): IInNotInStatement =>
   new InNotInStatement(left, InNotInOperator.notIn, right);
 
-class SqlOrderByClause extends BaseSqlExpression implements IOrderByClause {
+class SqlOrderByClause implements IOrderByClause {
   public orderByFields: ISQLOrderByField[];
 
   constructor(fields: ISQLOrderByField | ISQLOrderByField[]) {
-    super();
     this.orderByFields = Array.isArray(fields) ? fields : [fields];
   }
 
@@ -671,7 +612,7 @@ const sqlJoinByType = (joinType: JoinType): string => {
   throw new Error(`Unexpected join type: ${joinType}`);
 };
 
-export class Join extends BaseSqlExpression implements IJoin {
+export class Join implements IJoin {
   public type: JoinType;
   public from: IFieldReferenceFn | IJoin;
   public to: IFieldReferenceFn | IJoin;
@@ -685,7 +626,6 @@ export class Join extends BaseSqlExpression implements IJoin {
     p4?: JoinType | IFieldReferenceFn,
     p5?: JoinType
   ) {
-    super();
     if (typeof p1 === 'function') {
       this.from = p1;
       if (typeof p2 === 'function') {
@@ -709,6 +649,8 @@ export class Join extends BaseSqlExpression implements IJoin {
       }
     }
   }
+
+  public isSimpleValue = () => false;
 
   public toSql = (context?: IQueryContext): string => {
     const qryContext = context || new QueryContext();
@@ -870,16 +812,13 @@ export interface ISqlValueFormattingFunction {
 export function isSqlExpression(obj: any): obj is ISQLExpression {
   if (typeof obj === 'object') {
     return Boolean(
-      obj instanceof BaseSqlExpression ||
-        (typeof obj.toSql === 'function' &&
-          typeof obj.isSimpleValue === 'function')
+      typeof obj.toSql === 'function' && typeof obj.isSimpleValue === 'function'
     );
   }
   return false;
 }
 
 export class FormattedSqlValueExpression<TableDef = any>
-  extends BaseSqlExpression
   implements ISQLExpression {
   private encapsulatedValues: ISQLExpression[];
   private readonly formattingFunction: ISqlValueFormattingFunction;
@@ -888,7 +827,6 @@ export class FormattedSqlValueExpression<TableDef = any>
     formattingFunction: ISqlValueFormattingFunction,
     values: ISQLExpression | DataValue<TableDef> | Array<ISQLExpression>
   ) {
-    super();
     this.formattingFunction = formattingFunction;
     this.encapsulatedValues = Array.isArray(values)
       ? values.map(value =>
@@ -1069,7 +1007,6 @@ export const whereClause = (
 };
 
 class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
-  extends BaseSqlExpression
   implements ISqlCaseExpression {
   public whenBranches: ISqlCaseBranch[];
   public elseVal?: ISQLExpression;
@@ -1081,7 +1018,6 @@ class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
     }>,
     elseVal?: ISQLExpression | DataValue<ElseTableDef>
   ) {
-    super();
     this.whenBranches = whenBranches.map(({condition, then}) => ({
       condition: isSqlExpression(condition)
         ? condition
@@ -1094,6 +1030,8 @@ class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
         : new SQLValue(elseVal)
       : undefined;
   }
+
+  isSimpleValue = () => false;
 
   toSql = (qryContext: IQueryContext = new QueryContext()) => {
     if (this.whenBranches.length < 1) return '';
@@ -1148,6 +1086,13 @@ export function nullValue<LeftTableDef = any, RightTableDef = any>(
   return dbDialect().nullValue(val1, val2);
 }
 
+export function concat<LeftTableDef = any, RightTableDef = any>(
+  val1: ISQLExpression | DataValue<LeftTableDef>,
+  val2: ISQLExpression | DataValue<RightTableDef>
+): ISQLExpression {
+  return dbDialect().concat(val1, val2);
+}
+
 class ParenthesizedExpression implements ISQLExpression {
   private expression: ISQLExpression;
 
@@ -1170,3 +1115,13 @@ class ParenthesizedExpression implements ISQLExpression {
  */
 export const parenthesized = (sqlExpression: ISQLExpression): ISQLExpression =>
   new ParenthesizedExpression(sqlExpression);
+
+export const binaryOperator = <
+  Operator extends string = string,
+  LeftTableDef = any,
+  RightTableDef = any
+>(
+  val1: ISQLExpression | DataValue<LeftTableDef>,
+  operator: Operator,
+  val2: ISQLExpression | DataValue<RightTableDef>
+): ISQLExpression => new BinaryOperatorExpression(val1, operator, val2);

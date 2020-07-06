@@ -33,6 +33,8 @@ export {
   value,
   caseWhen,
   nullValue,
+  binaryOperator,
+  concat,
   sqlNull
 } from './query/SQLExpression';
 

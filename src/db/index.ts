@@ -1,4 +1,8 @@
-import {caseWhen, value} from '../query/SQLExpression';
+import {
+  BinaryOperatorExpression,
+  caseWhen,
+  value
+} from '../query/SQLExpression';
 import {ISelectStatement} from '../query/statements';
 import {IFieldReference, ISQLExpression} from '../dbTypes';
 import {DataValue} from '../query/types';
@@ -36,12 +40,24 @@ export interface IDBDialect {
    * Given a select statement in input, allows to manipulate it
    * in order to inject dialect specific syntax in the statement.
    *
-   * The statement object returned may or may not be different from the
-   * one provided in input.
+   * The statement object returned may be a new object or the
+   * same one provided in input.
    *
    * @param selectStatement
    */
   toSelectSql: (selectStatement: ISelectStatement) => ISelectStatement;
+
+  /**
+   * String concatenation operator
+   *
+   * @param {DataValue<LeftTableDef> | ISQLExpression} val1
+   * @param {DataValue<RightTableDef> | ISQLExpression} val2
+   * @returns {ISQLExpression}
+   */
+  concat: <LeftTableDef = any, RightTableDef = any>(
+    val1: DataValue<LeftTableDef> | ISQLExpression,
+    val2: DataValue<RightTableDef> | ISQLExpression
+  ) => ISQLExpression;
 }
 
 class NoDialect implements IDBDialect {
@@ -55,6 +71,10 @@ class NoDialect implements IDBDialect {
   namedParameter = (name: string) => name;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
+  concat = <LeftTableDef = any, RightTableDef = any>(
+    v1: ISQLExpression | DataValue<LeftTableDef>,
+    v2: ISQLExpression | DataValue<LeftTableDef>
+  ) => new BinaryOperatorExpression(v1, '||', v2);
   nullValue = <LeftTableDef = any, RightTableDef = any>(
     val1: ISQLExpression | DataValue<LeftTableDef>,
     val2: ISQLExpression | DataValue<RightTableDef>
