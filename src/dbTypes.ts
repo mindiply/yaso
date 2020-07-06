@@ -189,11 +189,6 @@ export interface IDBField<T> extends ITableField<T> {
 }
 
 export interface IDBTable<DataType = any> extends ITable<DataType> {
-  name: string;
-  dbName: string;
-  hasCC: boolean;
-  hasInsertTimestamp: boolean;
-  hasUpdateTimestamp: boolean;
   fields: IDBField<DataType>[];
   ccField?: IDBField<DataType>;
   insertTimestampField?: IDBField<DataType>;

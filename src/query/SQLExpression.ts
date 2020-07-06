@@ -1006,6 +1006,21 @@ export const whereClause = (
   return new WhereClause(rootWhereExpression);
 };
 
+class DeleteClause<T> implements ISQLExpression {
+  private tblRef: ReferencedTable<T>;
+
+  constructor(tblRef: ReferencedTable<T>) {
+    this.tblRef = tblRef;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = (): string => `delete from ${this.tblRef.tbl.dbName}`;
+}
+
+export const deleteClause = <T>(tbl: ReferencedTable<T>): ISQLExpression =>
+  new DeleteClause(tbl);
+
 class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
   implements ISqlCaseExpression {
   public whenBranches: ISqlCaseBranch[];

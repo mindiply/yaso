@@ -42,6 +42,7 @@ export {
   insertQuerySql,
   tableSelectSql,
   updateQuerySql,
+  deleteQuerySql,
   tbl
 } from './query/sqlTableQuery';
 export {selectFrom} from './query/sqlQuery';

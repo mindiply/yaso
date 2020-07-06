@@ -42,7 +42,7 @@ interface IClauses {
  */
 export interface IStatement extends ISQLExpression, IClauses {}
 
-class Statement implements IStatement {
+export class Statement implements IStatement {
   protected blocks: string[];
   protected blocksMap: Map<string, ISQLExpression>;
 

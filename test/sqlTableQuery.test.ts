@@ -15,9 +15,11 @@ import {
   updateQuerySql,
   max,
   createDBTbl,
-  getDbTableByDbName
+  getDbTableByDbName,
+  moreOrEqual,
+  selectFrom,
+  deleteQuerySql
 } from '../src';
-import {selectFrom} from '../src/query/sqlQuery';
 
 usePg();
 
@@ -367,5 +369,57 @@ order by enc.name`;
       orderByFields: [{field: tstQry.name}]
     });
     expect(sql).toBe(expectdSql);
+  });
+});
+
+describe('Delete queries', () => {
+  interface ITest {
+    id: string;
+    name: string;
+    when: Date;
+    cc: number;
+  }
+  const tstDef: ITableDefinition<ITest> = {
+    name: 'Test',
+    dbName: 'tst',
+    fields: [
+      {
+        name: 'id',
+        dbName: 'tst_id'
+      },
+      {
+        name: 'name',
+        dbName: 'tst_name'
+      },
+      {
+        name: 'when',
+        dbName: 'tst_created_at',
+        isInsertTimestamp: true
+      },
+      {
+        name: 'cc',
+        dbName: 'tst_change_count',
+        isCC: true
+      }
+    ]
+  };
+  const qryTbl = tbl(tstDef);
+
+  test('basic delete', () => {
+    expect(deleteQuerySql(qryTbl)).toBe('delete from tst');
+  });
+
+  test('delete with some conditions', () => {
+    expect(
+      deleteQuerySql(qryTbl, {
+        where: and([
+          equals(qryTbl.name, prm('name')),
+          moreOrEqual(qryTbl.cc, 2)
+        ])
+      })
+    ).toBe(`delete from tst
+where
+  tst.tst_name = $[name]
+  and tst.tst_change_count >= 2`);
   });
 });

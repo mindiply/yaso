@@ -21,6 +21,13 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.14] - 2020-07-06
+
+### Added
+- Added **deleteQuerySql** function to create delete statements,
+  as well as with the methods **deleteQuery** and **deleteQuerySql&& of
+  referenced table objects
+
 ## [0.0.13] - 2020-07-06
 
 ### Added

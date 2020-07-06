@@ -21,7 +21,6 @@ import {
   concat,
   binaryOperator
 } from '../src';
-import exp = require('constants');
 
 interface ITst {
   _id: string;

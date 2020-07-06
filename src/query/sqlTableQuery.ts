@@ -7,7 +7,12 @@ import {
 } from './sqlTableFieldReference';
 import {createDBTbl, isDBTable} from '../dbModel';
 import {countNLines} from './utils';
-import {QueryContext, transformFieldUpdatesToSql} from './SQLExpression';
+import {
+  deleteClause,
+  QueryContext,
+  transformFieldUpdatesToSql,
+  whereClause
+} from './SQLExpression';
 import {
   ICalculatedFieldReferenceFn,
   IDBTable,
@@ -21,6 +26,7 @@ import {
 } from '../dbTypes';
 import {TableFieldUpdates, ISQLOrderByField, ISelectQry} from './types';
 import {selectFrom} from './sqlQuery';
+import {Statement} from './statements';
 
 export type SelectFieldRef<T> = keyof T | ISQLExpression | ReferencedTable<T>;
 
@@ -42,6 +48,10 @@ export interface IInsertQryParameters<T> {
 
 export interface IUpdateQryParameters<T> extends IInsertQryParameters<T> {
   where: ISQLExpression;
+}
+
+export interface IDeleteQryParameters {
+  where?: ISQLExpression;
 }
 
 abstract class BaseTableQuery<T> {
@@ -361,6 +371,46 @@ type IGenerateUpdateParametersCallbackFn<T> = (
   qryTable: ReferencedTable<T>
 ) => IUpdateQryParameters<T>;
 
+type IGenerateDeleteParametersCallbackFn<T> = (
+  qryTable: ReferencedTable<T>
+) => IDeleteQryParameters;
+
+interface ITableDeleteQry<Result> {
+  <T>(
+    dbTable: IDBTable<T> | ReferencedTable<T>,
+    qryPrms?: IDeleteQryParameters
+  ): Result;
+  <T>(
+    dbTable: IDBTable<T> | ReferencedTable<T>,
+    cb?: IGenerateDeleteParametersCallbackFn<T>
+  ): Result;
+}
+
+export const deleteQuery: ITableDeleteQry<ISQLExpression> = <T>(
+  dbTable: IDBTable<T> | ReferencedTable<T>,
+  prmsOrCb: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T> = {}
+): ISQLExpression => {
+  const statement = new Statement();
+  const baseTbl = isReferencedTable(dbTable)
+    ? (dbTable as ReferencedTable<T>)
+    : tbl(dbTable as IDBTable<T>);
+  const deletePrms =
+    typeof prmsOrCb === 'function' ? prmsOrCb(baseTbl) : prmsOrCb;
+  statement.addClause('deleteClause', deleteClause(baseTbl));
+  const {where} = deletePrms;
+  if (where) {
+    statement.addClause('where', whereClause(where));
+  }
+  return statement;
+};
+
+export const deleteQuerySql: ITableDeleteQry<string> = <T>(
+  dbTable: IDBTable<T> | ReferencedTable<T>,
+  prmsOrCb: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T> = {}
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  //@ts-expect-error
+): string => deleteQuery(dbTable, prmsOrCb).toSql();
+
 interface ITableUpdateQrySql {
   <T>(dbTable: IDBTable<T>, qryPrms: IUpdateQryParameters<T>): string;
   <T>(dbTable: IDBTable<T>, cb: IGenerateUpdateParametersCallbackFn<T>): string;
@@ -381,7 +431,7 @@ export const updateQuerySql: ITableUpdateQrySql = <T>(
 
 type MemberFn = (...prms: any[]) => any;
 
-type QueryReferenceTable<T> = ReferencedTable<T> & {
+interface RefTableQueries<T> {
   insertQry: (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ) => ISQLExpression;
@@ -400,9 +450,18 @@ type QueryReferenceTable<T> = ReferencedTable<T> & {
   selectQrySql: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
   ) => string;
-};
+  deleteQry: (
+    propsOrCb?: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T>
+  ) => ISQLExpression;
+  deleteQrySql: (
+    propsOrCb?: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T>
+  ) => string;
+}
 
-class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
+type QueryReferenceTable<T> = ReferencedTable<T> & RefTableQueries<T>;
+
+class QueryReferenceTableImpl<T> extends BaseReferenceTable<T>
+  implements RefTableQueries<T> {
   [fieldname: string]:
     | IFieldReferenceFn<T>
     | ICalculatedFieldReferenceFn<T>
@@ -468,6 +527,28 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T> {
   ): string => {
     const tblQuery = this.selectQry(propsOrCb);
     return tblQuery.toSql();
+  };
+
+  public deleteQry = (
+    propsOrCb:
+      | IDeleteQryParameters
+      | IGenerateDeleteParametersCallbackFn<T> = {}
+  ) => {
+    const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    return deleteQuery(refTbl, propsOrCb);
+  };
+
+  public deleteQrySql = (
+    propsOrCb:
+      | IDeleteQryParameters
+      | IGenerateDeleteParametersCallbackFn<T> = {}
+  ) => {
+    const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    return deleteQuerySql(refTbl, propsOrCb);
   };
 }
 
