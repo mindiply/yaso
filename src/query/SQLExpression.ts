@@ -1,4 +1,11 @@
-import {countNLines, infixString, parenthesizeSql} from './utils';
+import {
+  countNLines,
+  firstLineLength,
+  infixString,
+  lastLineLength,
+  parenthesizeSql,
+  unaryOperatorString
+} from './utils';
 import indentString from 'indent-string';
 import {
   AggregateOperator,
@@ -1140,3 +1147,66 @@ export const binaryOperator = <
   operator: Operator,
   val2: ISQLExpression | DataValue<RightTableDef>
 ): ISQLExpression => new BinaryOperatorExpression(val1, operator, val2);
+
+class ExistsExpression implements ISQLExpression {
+  private qry: ISelectQry;
+
+  constructor(qry: ISelectQry) {
+    this.qry = qry;
+  }
+
+  isSimpleValue = () => false;
+
+  toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    return unaryOperatorString(qryContext, this.qry, 'exists', true, true);
+  };
+}
+
+/**
+ * Allows writing EXISTS (subquery) expressions
+ *
+ * @param {ISelectQry} qry
+ * @returns {ISQLExpression}
+ */
+export const exists = (qry: ISelectQry): ISQLExpression =>
+  new ExistsExpression(qry);
+
+class CastExpression implements ISQLExpression {
+  private expression: ISQLExpression;
+  private type: string;
+
+  constructor(expression: DataValue | ISQLExpression, type: string) {
+    this.expression = isSqlExpression(expression)
+      ? expression
+      : new SQLValue(expression);
+    this.type = type;
+  }
+
+  isSimpleValue = () => true;
+
+  toSql = (qryContext?: IQueryContext) => {
+    const expressionSql = this.expression.isSimpleValue()
+      ? this.expression.toSql(qryContext)
+      : parenthesizeSql(this.expression.toSql(qryContext));
+    const leftPart = 'cast(';
+    const rightPart = ` as ${this.type})`;
+    const separator =
+      leftPart.length + firstLineLength(expressionSql) >
+        MAX_SINGLE_LINE_STATEMENT_LENGTH ||
+      rightPart.length + lastLineLength(expressionSql) >
+        MAX_SINGLE_LINE_STATEMENT_LENGTH
+        ? '\n'
+        : '';
+
+    return `${leftPart}${separator}${expressionSql}${separator}${rightPart}`;
+  };
+}
+
+/**
+ * Allows writing CAST (expr AS TYPE) expressions, for casting columns or
+ * expressions to specific types
+ */
+export const castAs = (
+  expression: DataValue | ISQLExpression,
+  type: string
+): ISQLExpression => new CastExpression(expression, type);

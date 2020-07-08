@@ -18,7 +18,12 @@ import {
   getDbTableByDbName,
   moreOrEqual,
   selectFrom,
-  deleteQuerySql
+  deleteQuerySql,
+  castAs,
+  concat,
+  exists,
+  value,
+  min
 } from '../src';
 
 usePg();
@@ -317,6 +322,28 @@ where
       }))
       .toSql();
     expect(sql).toBe(expectedSql);
+  });
+
+  test('Exists and cast operators on simple select', () => {
+    const sql = qryTbl.selectQrySql(tst => ({
+      fields: [
+        alias(
+          castAs(concat('{"maxId":"', concat(min(tst.id), '"}')), 'jsonb'),
+          'json'
+        )
+      ],
+      where: exists(
+        tbl(qryTbl.tbl).selectQry(tst2 => ({
+          fields: [value(1)],
+          where: moreThan(tst2.id, tst.id)
+        }))
+      )
+    }));
+    expect(sql).toBe(
+      `select cast('{"maxId":"' || min(tst.tst_id) || '"}' as jsonb) as "json"
+from tst
+where exists (select 1 from tst as "tst2" where tst2.tst_id > tst.tst_id)`
+    );
   });
 });
 

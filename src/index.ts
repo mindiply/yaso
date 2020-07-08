@@ -35,7 +35,9 @@ export {
   nullValue,
   binaryOperator,
   concat,
-  sqlNull
+  sqlNull,
+  castAs,
+  exists
 } from './query/SQLExpression';
 
 export {

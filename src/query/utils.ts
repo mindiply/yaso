@@ -15,7 +15,7 @@ export const parenthesizeSql = (sqlStr: string): string => {
   })`;
 };
 
-function firstLineLength(text: string): number {
+export function firstLineLength(text: string): number {
   const nLines = countNLines(text);
   if (nLines === 0) return 0;
   if (nLines === 1) return text.length;
@@ -23,13 +23,37 @@ function firstLineLength(text: string): number {
   return lines[0].length;
 }
 
-function lastLineLength(text: string): number {
+export function lastLineLength(text: string): number {
   const nLines = countNLines(text);
   if (nLines === 0) return 0;
   if (nLines === 1) return text.length;
   const lines = text.split(/\r\n|\r|\n/);
   return lines[lines.length - 1].length;
 }
+
+export const unaryOperatorString = (
+  qryContext: IQueryContext,
+  expression: ISQLExpression,
+  operator: string,
+  isLeftOperator = true,
+  parenthesizeExpression = true
+): string => {
+  const opLen = operator.length + 1;
+  const expressionSql = parenthesizeExpression
+    ? parenthesizeSql(expression.toSql(qryContext))
+    : expression.toSql(qryContext);
+  const expressionLen = isLeftOperator
+    ? firstLineLength(expressionSql)
+    : lastLineLength(expressionSql);
+  if (opLen + expressionLen <= MAX_SINGLE_LINE_STATEMENT_LENGTH) {
+    return isLeftOperator
+      ? `${operator} ${expressionSql}`
+      : `${expressionSql} ${operator}`;
+  }
+  return isLeftOperator
+    ? `${operator}\n${expressionSql}`
+    : `${expressionSql}\n${operator}`;
+};
 
 /**
  * Creates a string for the a binary infix operator that breaks down the

@@ -21,6 +21,13 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.15] - 2020-07-08
+
+### Added
+- **exists (*subQuery*)** expressions are now supported
+- **castAs(expression, type)** allows casting values and expressions with 
+    **CAST (*expr* as type)** expressions
+
 ## [0.0.14] - 2020-07-06
 
 ### Added
