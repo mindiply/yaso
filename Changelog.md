@@ -21,6 +21,11 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.16] - 2020-07-09
+
+### Fixes
+- Fixed incorrect implementation of CASE WHEN ... ELSE END
+
 ## [0.0.15] - 2020-07-08
 
 ### Added

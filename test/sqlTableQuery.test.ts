@@ -23,7 +23,10 @@ import {
   concat,
   exists,
   value,
-  min
+  min,
+  caseWhen,
+  sqlNull,
+  mod
 } from '../src';
 
 usePg();
@@ -322,6 +325,60 @@ where
       }))
       .toSql();
     expect(sql).toBe(expectedSql);
+  });
+
+  test('case expression', () => {
+    const sql = qryTbl.selectQrySql({
+      fields: [
+        caseWhen(
+          [
+            {
+              condition: equals(mod(qryTbl.id, 2), 0),
+              then: 'even'
+            }
+          ],
+          value('odd')
+        )
+      ]
+    });
+    expect(sql).toBe(`select case when tst.tst_id % 2 = 0 then 'even' else 'odd' end from tst`);
+  });
+
+  test('multi case expression', () => {
+    const sql = qryTbl.selectQrySql({
+      fields: [
+        caseWhen(
+          [
+            {
+              condition: equals(mod(qryTbl.id, 4), 0),
+              then: 'div 4 rest 0'
+            },
+            {
+              condition: equals(mod(qryTbl.id, 4), 1),
+              then: 'div 4 rest 1'
+            },
+            {
+              condition: equals(mod(qryTbl.id, 4), 2),
+              then: 'div 4 rest 2'
+            },
+            {
+              condition: equals(mod(qryTbl.id, 4), 3),
+              then: 'div 4 rest 3'
+            }
+          ],
+          value('this is utterly, utterly unexpected boss')
+        )
+      ]
+    });
+    expect(sql).toBe(`select
+  case
+    when tst.tst_id % 4 = 0 then 'div 4 rest 0'
+    when tst.tst_id % 4 = 1 then 'div 4 rest 1'
+    when tst.tst_id % 4 = 2 then 'div 4 rest 2'
+    when tst.tst_id % 4 = 3 then 'div 4 rest 3'
+    else 'this is utterly, utterly unexpected boss'
+  end
+from tst`);
   });
 
   test('Exists and cast operators on simple select', () => {

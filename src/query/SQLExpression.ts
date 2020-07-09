@@ -1063,6 +1063,9 @@ class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
         `when ${condition.toSql(qryContext)} then ${then.toSql(qryContext)}`
       );
     });
+    if (this.elseVal) {
+      lines.push(`else ${this.elseVal.toSql(qryContext)}`);
+    }
     lines.push('end');
     const caseLen =
       lines.reduce((totLen, line) => totLen + line.length, 0) +
@@ -1072,7 +1075,7 @@ class CaseExpression<CondTableDef = any, ThenTableDef = any, ElseTableDef = any>
       return lines.join(' ');
     }
     lines.pop();
-    lines.unshift();
+    lines.shift();
     return `case\n${indentString(lines.join('\n'), 2)}\nend`;
   };
 }
