@@ -817,7 +817,7 @@ export interface ISqlValueFormattingFunction {
 }
 
 export function isSqlExpression(obj: any): obj is ISQLExpression {
-  if (typeof obj === 'object') {
+  if (obj && typeof obj === 'object') {
     return Boolean(
       typeof obj.toSql === 'function' && typeof obj.isSimpleValue === 'function'
     );

@@ -122,6 +122,7 @@ export interface IFieldReference<Table = any>
 
 export function isIFieldReference(obj: any): obj is IFieldReference<any> {
   if (
+    obj &&
     typeof obj === 'object' &&
     obj.field &&
     typeof obj.toSelectSql === 'function' &&
