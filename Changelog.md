@@ -21,6 +21,12 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.17] - 2020-07-17
+
+### Fixes
+- Using NULL as value in insert statements raised an
+exception
+
 ## [0.0.16] - 2020-07-09
 
 ### Fixes
