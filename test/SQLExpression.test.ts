@@ -58,7 +58,7 @@ const tblDef: ITableDefinition<ITst> = {
 
 const tst = tbl(tblDef);
 
-describe('SQL Expressions regression', () => {
+describe('SQL Expressions regressions', () => {
   test('Null value on insert', () => {
     const sql = tst.insertQrySql({fields: {name: null, cc: 0}});
     expect(sql).toBe(

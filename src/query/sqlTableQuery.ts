@@ -269,6 +269,9 @@ class InsertTableQuery<T> extends BaseWriteTableQuery<T>
     const fldList: string[] = [];
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
+      if (!(fieldName in this.refTbl)) {
+        return;
+      }
       const fieldRef = (((this.refTbl as any) as BaseReferenceTable)[
         fieldName
       ] as IFieldReferenceFn<T>)() as FieldReference<T>;

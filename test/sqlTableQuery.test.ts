@@ -341,7 +341,9 @@ where
         )
       ]
     });
-    expect(sql).toBe(`select case when tst.tst_id % 2 = 0 then 'even' else 'odd' end from tst`);
+    expect(sql).toBe(
+      `select case when tst.tst_id % 2 = 0 then 'even' else 'odd' end from tst`
+    );
   });
 
   test('multi case expression', () => {
@@ -505,5 +507,63 @@ describe('Delete queries', () => {
 where
   tst.tst_name = $[name]
   and tst.tst_change_count >= 2`);
+  });
+});
+
+describe('Regressions', () => {
+  interface ITest {
+    id: string;
+    name: string;
+    when: Date;
+    cc: number;
+  }
+  const tstDef: ITableDefinition<ITest> = {
+    name: 'Test',
+    dbName: 'tst',
+    fields: [
+      {
+        name: 'id',
+        dbName: 'tst_id'
+      },
+      {
+        name: 'name',
+        dbName: 'tst_name'
+      },
+      {
+        name: 'when',
+        dbName: 'tst_created_at',
+        isInsertTimestamp: true
+      },
+      {
+        name: 'cc',
+        dbName: 'tst_change_count',
+        isCC: true
+      }
+    ]
+  };
+  const qryTbl = tbl(tstDef);
+  test('Error in insertSql with non-desclared fields', () => {
+    expect(
+      qryTbl.insertQrySql({
+        fields: {
+          id: 1,
+          cc: 0,
+          name: 'Paolo',
+          // @ts-expect-error
+          nonPresentName: 'Another',
+          when: new Date(2020, 0, 1)
+        }
+      })
+    ).toBe(`insert into tst (
+  tst_change_count,
+  tst_id,
+  tst_name,
+  tst_created_at
+) values (
+  0,
+  1,
+  'Paolo',
+  ${new Date(2020, 0, 1).toISOString()}
+)`);
   });
 });
