@@ -542,28 +542,36 @@ describe('Regressions', () => {
     ]
   };
   const qryTbl = tbl(tstDef);
+
   test('Error in insertSql with non-desclared fields', () => {
-    expect(
+    expect(() =>
       qryTbl.insertQrySql({
         fields: {
           id: 1,
           cc: 0,
           name: 'Paolo',
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-expect-error
           nonPresentName: 'Another',
           when: new Date(2020, 0, 1)
         }
       })
-    ).toBe(`insert into tst (
-  tst_change_count,
-  tst_id,
-  tst_name,
-  tst_created_at
-) values (
-  0,
-  1,
-  'Paolo',
-  ${new Date(2020, 0, 1).toISOString()}
-)`);
+    ).toThrow(new TypeError(`Field nonPresentName not mapped`));
+  });
+
+  test('Error in updateSql with non-desclared fields', () => {
+    expect(() =>
+      qryTbl.updateQrySql({
+        fields: {
+          cc: 0,
+          name: 'Paolo',
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-expect-error
+          nonPresentName: 'Another',
+          when: new Date(2020, 0, 1)
+        },
+        where: equals(qryTbl.id, value(1))
+      })
+    ).toThrow(new TypeError(`Field nonPresentName not mapped`));
   });
 });

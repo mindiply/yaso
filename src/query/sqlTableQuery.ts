@@ -245,6 +245,9 @@ class BaseWriteTableQuery<T> extends BaseTableQuery<T> {
     qryContext: IQueryContext,
     [fieldName, fieldValue]: [string, ISQLExpression]
   ): string => {
+    if (!(fieldName in this.refTbl)) {
+      throw new TypeError(`Field ${fieldName} not mapped`);
+    }
     const field = (((this.refTbl as any) as BaseReferenceTable)[
       fieldName
     ] as IFieldReferenceFn)();
@@ -270,7 +273,7 @@ class InsertTableQuery<T> extends BaseWriteTableQuery<T>
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
       if (!(fieldName in this.refTbl)) {
-        return;
+        throw new TypeError(`Field ${fieldName} not mapped`);
       }
       const fieldRef = (((this.refTbl as any) as BaseReferenceTable)[
         fieldName

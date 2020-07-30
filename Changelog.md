@@ -20,6 +20,13 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.19] - 2020-07-30
+
+### Fixes
+- Changed handling of unmapped fields in update and insert queries.
+  We now throw a TypeError with the name of the first offending field
+  in the exception
+
 ## [0.0.18] - 2020-07-30
 
 ### Fixes
