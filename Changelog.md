@@ -20,6 +20,11 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.18] - 2020-07-30
+
+### Fixes
+- Fixed thrown exception when creating an insert query with a
+  field that is not mapped. The field is now ignored. 
 
 ## [0.0.17] - 2020-07-17
 
