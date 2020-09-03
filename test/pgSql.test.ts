@@ -62,7 +62,7 @@ const tblDef: TableDefinition<ITst> = {
       calculation: tblRef =>
         selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
           qry
-            .fields(alias(count(tbl2Ref.cols._id), 'count'))
+            .fields(count(tbl2Ref.cols._id))
             .where(equals(tbl2Ref.cols.name, tblRef.cols.name));
         })
     },
@@ -160,7 +160,7 @@ where tst.tst_name = $[name]`);
     expect(sql).toBe(`select
   tst.tst_id as "_id",
   (
-    select count(tst2.tst_id) as "count"
+    select count(tst2.tst_id) as "SQC1"
     from tst as "tst2"
     where tst2.tst_name = tst.tst_name
   ) as "complexCF"
@@ -176,7 +176,7 @@ where tst.tst_name = $[name]`);
 from tst
 where
   (
-    select count(tst2.tst_id) as "count"
+    select count(tst2.tst_id) as "SQC1"
     from tst as "tst2"
     where tst2.tst_name = tst.tst_name
   ) > 1`);

@@ -335,50 +335,6 @@ class FromClause implements IFromClause {
   };
 }
 
-export function fromClause<T1>(tables: [ResultSet<T1>]): IFromClause;
-
-export function fromClause<T1, T2>(
-  tables: [ResultSet<T1>, ResultSet<T2>]
-): IFromClause;
-export function fromClause<T1, T2, T3>(
-  tables: [ResultSet<T1>, ResultSet<T2>, ResultSet<T3>]
-): IFromClause;
-export function fromClause<T1, T2, T3, T4>(
-  tables: [ResultSet<T1>, ResultSet<T2>, ResultSet<T3>, ResultSet<T4>]
-): IFromClause;
-export function fromClause<T1, T2, T3, T4, T5>(
-  tables: [
-    ResultSet<T1>,
-    ResultSet<T2>,
-    ResultSet<T3>,
-    ResultSet<T4>,
-    ResultSet<T5>
-  ]
-): IFromClause;
-export function fromClause(
-  tables: ResultSet<any>[],
-  joins?: IJoin[]
-): IFromClause;
-export function fromClause<T1, T2, T3>(
-  tables: [ResultSet<T1>],
-  joins: [IJoin<T2, T3>]
-): IFromClause;
-export function fromClause<T1, T2, T3, T4>(
-  tables: [ResultSet<T1>, ResultSet<T2>],
-  joins: [IJoin<T3, T4>]
-): IFromClause;
-export function fromClause<T1, T2>(
-  tables: [],
-  joins: [IJoin<T1, T2>]
-): IFromClause;
-export function fromClause<T1, T2, T3>(
-  tables: [],
-  joins: [IJoin<T1, IJoin<T2, T3>>]
-): IFromClause;
-export function fromClause<T1, T2, T3>(
-  tables: [],
-  joins: [IJoin<IJoin<T1, T2>, T3>]
-): IFromClause;
 export function fromClause(
   tables: ResultSet<any>[] = [],
   joins: IJoin[] = []

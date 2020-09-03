@@ -6,7 +6,7 @@ import {
 } from './sqlTableFieldReference';
 import {createDBTbl, isDBTable} from '../dbModel';
 import {countNLines} from './utils';
-import {AliasSqlExpression, transformFieldUpdatesToSql} from './SQLExpression';
+import {transformFieldUpdatesToSql} from './SQLExpression';
 import {
   IDBTable,
   IQueryContext,
@@ -23,7 +23,7 @@ import {QueryContext} from './queryContext';
 
 export type SelectFieldRef<T> =
   | keyof T
-  | AliasSqlExpression
+  | SQLExpression
   | ReferencedTable<T>;
 
 interface ITableQryBaseParameters<T> {

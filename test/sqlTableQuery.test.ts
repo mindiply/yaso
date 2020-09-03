@@ -312,7 +312,7 @@ where
 from tst
 where
   tst.tst_id = (
-    select max(tst2.tst_id) as "maxId"
+    select max(tst2.tst_id) as "SQC1"
     from tst as "tst2"
     where tst2.tst_name = $[name]
   )`;
@@ -322,7 +322,7 @@ where
           tst.cols.id,
           selectFrom(getDbTableByDbName<ITest>('tst'), (qry, tst2) => {
             qry
-              .fields(alias(max(tst2.cols.id), 'maxId'))
+              .fields(max(tst2.cols.id))
               .where(equals(tst2.cols.name, prm('name')));
           })
         )
