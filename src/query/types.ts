@@ -1,11 +1,14 @@
 import {
-  ICalculatedFieldReference,
+  CalculatedFieldReference,
   IDBTable,
-  IFieldReference,
-  IFieldReferenceFn,
-  IFromTable,
-  ISQLExpression,
-  ReferencedTable
+  TableFieldReference,
+  ColumnReferenceFn,
+  SQLExpression,
+  ReferencedTable,
+  ResultColumn,
+  ResultSet,
+  SQLAliasedExpression,
+  TableDefinition
 } from '../dbTypes';
 
 export type Id = string | number;
@@ -20,13 +23,13 @@ export interface ITbl extends IId {
   updatedAt: Date;
 }
 
-export interface ISqlAliasExpression extends ISQLExpression {
-  expression: ISQLExpression;
+export interface ISqlAliasExpression extends SQLAliasedExpression {
+  expression: SQLExpression;
 }
 
-export interface ISQLMathExpression extends ISQLExpression {
-  left: ISQLExpression;
-  right: ISQLExpression;
+export interface ISQLMathExpression extends SQLExpression {
+  left: SQLExpression;
+  right: SQLExpression;
   operator: MathBinaryOperator;
 }
 
@@ -35,8 +38,8 @@ export enum NullComparatorType {
   isNotNull = 'isNotNull'
 }
 
-export interface IWhereNullCond extends ISQLExpression {
-  operand: ISQLExpression;
+export interface IWhereNullCond extends SQLExpression {
+  operand: SQLExpression;
   type: NullComparatorType;
 }
 
@@ -55,15 +58,15 @@ export enum BinaryComparator {
   diffs = '<>'
 }
 
-export interface ISqlBinaryComparison extends ISQLExpression {
-  left: ISQLExpression;
-  right: ISQLExpression;
+export interface ISqlBinaryComparison extends SQLExpression {
+  left: SQLExpression;
+  right: SQLExpression;
   operator: BinaryComparator;
 }
 
-export interface ISqlLogicalExpression extends ISQLExpression {
+export interface ISqlLogicalExpression extends SQLExpression {
   operator: LogicalOperator;
-  operands: ISQLExpression | ISQLExpression[];
+  operands: SQLExpression | SQLExpression[];
 }
 
 export enum AggregateOperator {
@@ -74,17 +77,17 @@ export enum AggregateOperator {
 }
 
 export interface ISqlCaseBranch {
-  condition: ISQLExpression;
-  then: ISQLExpression;
+  condition: SQLExpression;
+  then: SQLExpression;
 }
 
-export interface ISqlCaseExpression extends ISQLExpression {
+export interface ISqlCaseExpression extends SQLExpression {
   whenBranches: ISqlCaseBranch[];
-  elseVal?: ISQLExpression;
+  elseVal?: SQLExpression;
 }
 
-export interface ISqlAggregateOperator extends ISQLExpression {
-  expression: ISQLExpression;
+export interface ISqlAggregateOperator extends SQLExpression {
+  expression: SQLExpression;
   operator: AggregateOperator | string;
 }
 
@@ -94,16 +97,16 @@ export interface ISqlAggregateOperator extends ISQLExpression {
  *
  * (expr1, expr2, ..., exprn)
  */
-export interface ISqlListExpression extends ISQLExpression {
-  listItems: ISQLExpression[];
+export interface ISqlListExpression extends SQLExpression {
+  listItems: SQLExpression[];
 }
 
 export interface ISQLOrderByField<T = any> {
-  field: ISQLExpression | IFieldReferenceFn<T>;
+  field: SQLExpression | ResultColumn<T> | ColumnReferenceFn<T>;
   isDesc?: boolean;
 }
 
-export interface IOrderByClause extends ISQLExpression {
+export interface IOrderByClause extends SQLExpression {
   orderByFields: ISQLOrderByField[];
 }
 
@@ -112,10 +115,10 @@ export enum InNotInOperator {
   notIn = 'not in'
 }
 
-export interface IInNotInStatement extends ISQLExpression {
+export interface IInNotInStatement extends SQLExpression {
   type: InNotInOperator;
-  left: ISQLExpression;
-  right: ISqlListExpression | ISelectQry;
+  left: SQLExpression;
+  right: ISqlListExpression | ResultSet<any>;
 }
 
 export enum MathBinaryOperator {
@@ -133,12 +136,12 @@ export enum JoinType {
 }
 
 export interface IJoin<T1 = any, T2 = any, T3 = any, T4 = any>
-  extends ISQLExpression {
+  extends SQLExpression {
   type: JoinType;
-  from: IFieldReferenceFn | IJoin<T1, T2>;
-  to: IFieldReferenceFn | IJoin<T2, T3> | IJoin<T3, T4>;
-  onFrom?: IFieldReferenceFn;
-  onTo?: IFieldReferenceFn;
+  from: ColumnReferenceFn<T1> | IJoin<T1, T2>;
+  to: ColumnReferenceFn<T1> | IJoin<T2, T3> | IJoin<T3, T4>;
+  onFrom?: ColumnReferenceFn<T1 | T2>;
+  onTo?: ColumnReferenceFn<T3 | T2 | T4>;
 }
 
 export interface IOrderByFn<RT = IOrderByClause> {
@@ -241,46 +244,53 @@ export interface IOrderByFn<RT = IOrderByClause> {
 
 export type AtomicDataValue = string | number | boolean | Uint8Array | Date;
 
-export interface INamedParameter extends ISQLExpression {
+export interface INamedParameter extends SQLExpression {
   parameterName: string;
 }
 
-export type DataValue<TableDefinition = any> =
-  | AtomicDataValue
-  | IFieldReferenceFn<TableDefinition>
-  | INamedParameter
-  | null;
+export type DataValue<
+  Ref extends ColumnReferenceFn<any> = ColumnReferenceFn<any>
+> = AtomicDataValue | Ref | INamedParameter | null;
 
 export type TableFieldUpdates<T> = {
-  [P in keyof T]?: DataValue<T> | ISQLExpression;
+  [P in keyof T]?: DataValue | SQLExpression;
 };
 
-export interface ISelectClause extends ISQLExpression {
-  selectFields: ISQLExpression[];
+export interface ISelectClause extends SQLExpression {
+  readonly selectFields: SQLExpression[];
 }
 
-export interface IFromClause extends ISQLExpression {
-  tables: IFromTable<any>[];
-  joins: IJoin[];
+export interface IFromClause extends SQLExpression {
+  readonly tables: ResultSet<any>[];
+  readonly joins: readonly IJoin[];
 }
 
-export interface IWhereClause extends ISQLExpression {
-  rootWhereExpression: ISQLExpression;
+export interface IWhereClause extends SQLExpression {
+  rootWhereExpression: SQLExpression;
 }
 
-export type SelectQryTablePrm<T> = IDBTable<T> | ReferencedTable<T>;
+export type SelectQryTablePrm<T> =
+  | TableDefinition<T>
+  | IDBTable<T>
+  | ResultSet<T>;
 
 export interface IQryCallback {
-  <T>(qry: ISelectQry, t1: T): void;
+  <T>(qry: SelectQuery<T>, t1: T): void;
 
-  <T1, T2>(qry: ISelectQry, t1: T1, t2: T2): void;
+  <T1, T2>(qry: SelectQuery<T1 & T2>, t1: T1, t2: T2): void;
 
-  <T1, T2, T3>(qry: ISelectQry, t1: T1, t2: T2, t3: T3): void;
+  <T1, T2, T3>(qry: SelectQuery<T1 & T2 & T3>, t1: T1, t2: T2, t3: T3): void;
 
-  <T1, T2, T3, T4>(qry: ISelectQry, t1: T1, t2: T2, t3: T3, t4: T4): void;
+  <T1, T2, T3, T4>(
+    qry: SelectQuery<T1 & T2 & T3 & T4>,
+    t1: T1,
+    t2: T2,
+    t3: T3,
+    t4: T4
+  ): void;
 
   <T1, T2, T3, T4, T5>(
-    qry: ISelectQry,
+    qry: SelectQuery<T1 & T2 & T3 & T4>,
     t1: T1,
     t2: T2,
     t3: T3,
@@ -289,120 +299,102 @@ export interface IQryCallback {
   ): void;
 }
 
-export type SelectFields = Array<
-  IFieldReference | ISQLExpression | ReferencedTable<any>
+export type SelectFields<ObjShape = any> = Array<
+  ResultColumn<ObjShape> | SQLExpression | ReferencedTable<ObjShape>
 >;
-export type SelectFieldPrm<T> =
-  | IFieldReferenceFn<T>
-  | ISQLExpression
-  | ReferencedTable<T>;
+
+export type SelectFieldPrm<ObjShape> =
+  | ColumnReferenceFn<ObjShape>
+  | SQLExpression
+  | ReferencedTable<ObjShape>;
 
 export interface IFieldsMemberFn<ReturnType> {
   <T>(field: SelectFieldPrm<T>): ReturnType;
 
-  <T1, T2>([field1, field2]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>
-  ]): ReturnType;
+  <T1, T2>(fields: [SelectFieldPrm<T1>, SelectFieldPrm<T2>]): ReturnType;
 
-  <T1, T2, T3>([field1, field2, field3]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>
-  ]): ReturnType;
+  <T1, T2, T3>(
+    fields: [SelectFieldPrm<T1>, SelectFieldPrm<T2>, SelectFieldPrm<T3>]
+  ): ReturnType;
 
-  <T1, T2, T3, T4>([field1, field2, field3, field4]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>
-  ]): ReturnType;
+  <T1, T2, T3, T4>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>
+    ]
+  ): ReturnType;
 
-  <T1, T2, T3, T4, T5>([field1, field2, field3, field4, field5]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>,
-    SelectFieldPrm<T5>
-  ]): ReturnType;
+  <T1, T2, T3, T4, T5>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>,
+      SelectFieldPrm<T5>
+    ]
+  ): ReturnType;
 
-  <T1, T2, T3, T4, T5, T6>([field1, field2, field3, field4, field5, field6]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>,
-    SelectFieldPrm<T5>,
-    SelectFieldPrm<T6>
-  ]): ReturnType;
+  <T1, T2, T3, T4, T5, T6>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>,
+      SelectFieldPrm<T5>,
+      SelectFieldPrm<T6>
+    ]
+  ): ReturnType;
 
-  <T1, T2, T3, T4, T5, T6, T7, T8>([
-    field1,
-    field2,
-    field3,
-    field4,
-    field5,
-    field6,
-    field7,
-    field8
-  ]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>,
-    SelectFieldPrm<T5>,
-    SelectFieldPrm<T6>,
-    SelectFieldPrm<T7>,
-    SelectFieldPrm<T8>
-  ]): ReturnType;
+  <T1, T2, T3, T4, T5, T6, T7, T8>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>,
+      SelectFieldPrm<T5>,
+      SelectFieldPrm<T6>,
+      SelectFieldPrm<T7>,
+      SelectFieldPrm<T8>
+    ]
+  ): ReturnType;
 
-  <T1, T2, T3, T4, T5, T6, T7, T8, T9>([
-    field1,
-    field2,
-    field3,
-    field4,
-    field5,
-    field6,
-    field7,
-    field8,
-    field9
-  ]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>,
-    SelectFieldPrm<T5>,
-    SelectFieldPrm<T6>,
-    SelectFieldPrm<T7>,
-    SelectFieldPrm<T8>,
-    SelectFieldPrm<T9>
-  ]): ReturnType;
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>,
+      SelectFieldPrm<T5>,
+      SelectFieldPrm<T6>,
+      SelectFieldPrm<T7>,
+      SelectFieldPrm<T8>,
+      SelectFieldPrm<T9>
+    ]
+  ): ReturnType;
 
-  <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>([
-    field1,
-    field2,
-    field3,
-    field4,
-    field5,
-    field6,
-    field7,
-    field8,
-    field9,
-    field10
-  ]: [
-    SelectFieldPrm<T1>,
-    SelectFieldPrm<T2>,
-    SelectFieldPrm<T3>,
-    SelectFieldPrm<T4>,
-    SelectFieldPrm<T5>,
-    SelectFieldPrm<T6>,
-    SelectFieldPrm<T7>,
-    SelectFieldPrm<T8>,
-    SelectFieldPrm<T9>,
-    SelectFieldPrm<T10>
-  ]): ReturnType;
+  <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
+    fields: [
+      SelectFieldPrm<T1>,
+      SelectFieldPrm<T2>,
+      SelectFieldPrm<T3>,
+      SelectFieldPrm<T4>,
+      SelectFieldPrm<T5>,
+      SelectFieldPrm<T6>,
+      SelectFieldPrm<T7>,
+      SelectFieldPrm<T8>,
+      SelectFieldPrm<T9>,
+      SelectFieldPrm<T10>
+    ]
+  ): ReturnType;
 
   (fields: SelectFieldPrm<any>[]): ReturnType;
 }
+
+export type ColumnsNames<ObjShape> = {
+  [P in keyof ObjShape]: P;
+};
 
 /**
  * Represents a SQL select query and allows manipulating it before generating
@@ -411,7 +403,7 @@ export interface IFieldsMemberFn<ReturnType> {
  *
  * The union operator is at this stage not supported.
  */
-export interface ISelectQry extends ISQLExpression {
+export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
   /**
    * Allows working on the select query object itself with all
    * the tables in the fields member field passed as parameters as
@@ -425,13 +417,13 @@ export interface ISelectQry extends ISQLExpression {
    * Lists all the fields we are explicitly selecting for the query.
    * If no field is selected, all fields of all the involved tables will be returned.
    */
-  fields: IFieldsMemberFn<ISelectQry>;
+  fields: IFieldsMemberFn<SelectQuery<ObjShape>>;
 
   /**
    * Allows ordering the query results on a number of fields, each one in asc or
    * desc order
    */
-  orderBy: IOrderByFn<ISelectQry>;
+  orderBy: IOrderByFn<SelectQuery<ObjShape>>;
 
   /**
    * Allows adding two or more joined tables to the list of tables we select from.
@@ -443,19 +435,19 @@ export interface ISelectQry extends ISQLExpression {
    * @param p5
    */
   join: <T1, T2>(
-    p1: IFieldReferenceFn | ISQLExpression,
-    p2: IFieldReferenceFn | ISQLExpression,
-    p3?: JoinType | IFieldReferenceFn | ISQLExpression,
-    p4?: JoinType | IFieldReferenceFn,
+    p1: ColumnReferenceFn<T1> | SQLExpression,
+    p2: ColumnReferenceFn<T1 | T2> | SQLExpression,
+    p3?: JoinType | ColumnReferenceFn<T1 | T2> | SQLExpression,
+    p4?: JoinType | ColumnReferenceFn<T2>,
     p5?: JoinType
-  ) => ISelectQry;
+  ) => SelectQuery<ObjShape>;
 
   /**
    * Sets the root where condition for the statement.
    *
    * @param rootCond
    */
-  where: (rootCond: ISQLExpression) => ISelectQry;
+  where: (rootCond: SQLExpression) => SelectQuery<ObjShape>;
 
   /**
    * If the database dialect supports it, you can limit the number of rows returned
@@ -463,26 +455,17 @@ export interface ISelectQry extends ISQLExpression {
    *
    * Returns the query object itself to allow chaining of conditions
    */
-  maxRows: (maxRows: number) => ISelectQry;
+  maxRows: (maxRows: number) => SelectQuery<ObjShape>;
 }
 
 export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;
 
-export interface IFieldSelectSqlExpression<T = any> extends ISQLExpression {
-  field: IFieldReference<T> | ICalculatedFieldReference<T>;
+export interface IFieldSelectSqlExpression<T = any>
+  extends SQLAliasedExpression {
+  field: TableFieldReference<T> | CalculatedFieldReference<T>;
 }
 
 export interface ISqlNullValueExpression {
-  val1: ISQLExpression;
-  val2: ISQLExpression;
+  val1: SQLExpression;
+  val2: SQLExpression;
 }
-
-/**
- * Utility mapped type for table definitions, that normalizes a table definition,
- * including the calculated fields definitions
- */
-export type ResolvedTableDef<TableDef> = {
-  [P in keyof TableDef]: TableDef[P] extends (...args: any[]) => infer R
-    ? R
-    : TableDef[P];
-};

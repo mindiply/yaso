@@ -1,10 +1,10 @@
-interface IBaseFieldDefinition<DataType> {
+interface BaseFieldDefinition<ObjShape> {
   dbName: string;
-  name: keyof DataType;
+  name: keyof ObjShape;
 }
 
-export interface ITableFieldDefinition<DataType>
-  extends IBaseFieldDefinition<DataType> {
+export interface TableFieldDefinition<ObjShape>
+  extends BaseFieldDefinition<ObjShape> {
   isEncrypted?: boolean;
   isHash?: boolean;
   isPwHash?: boolean;
@@ -18,7 +18,7 @@ export interface ITableFieldDefinition<DataType>
  * accepts an optional query context object to determine the alias
  * of the table the sql expression belongs to.
  */
-export interface IToSqlFn {
+export interface ToSqlFn {
   (qryContext?: IQueryContext): string;
 }
 
@@ -33,14 +33,25 @@ export interface IQueryContext {
    * @param tbl The referenced table
    * @param alias An alias if the alias is provided by the client
    */
-  addTable: <T>(tbl: ReferencedTable<T>, alias?: string) => string;
+  addTable: (tbl: ResultSet<any>, alias?: string) => string;
 
   /**
    * It returns the alias assigned to a specific referenced table object,
    * using the === operator to find it.
    * @param tbl
    */
-  tableRefAlias: <T>(tbl: ReferencedTable<T>) => null | string;
+  tableRefAlias: (tbl: ResultSet<any>) => null | string;
+}
+
+export interface Aliased {
+  /**
+   * Represents the alias of a SQL expression (could be a table field,
+   * a subquery, a table, a view).
+   *
+   * For database objects it may return the underlying database name if
+   * an alias was not specified
+   */
+  alias: string;
 }
 
 /**
@@ -51,19 +62,73 @@ export interface IQueryContext {
  * of the expression. Some expressions will throw an error if they need
  * an initialized query context and it is not provided.
  */
-export interface ISQLExpression {
-  toSql: IToSqlFn;
+export interface SQLExpression {
+  toSql: ToSqlFn;
   isSimpleValue: () => boolean;
+}
+
+export interface SQLAliasedExpression extends SQLExpression, Aliased {
+  readonly isExplicitAlias: boolean;
+}
+
+/**
+ * Represents a resultSet, which could be a table, a view
+ * or a subTable
+ */
+export interface ResultSet<
+  ObjShape,
+  Refs =
+    | ColumnReferenceFn<ObjShape>
+    | TableFieldReferenceFn<ObjShape>
+    | CalculatedFieldReferenceFn<ObjShape>
+> extends SQLAliasedExpression {
+  toReferenceSql: ToSqlFn;
+  readonly name: string;
+  readonly cols: ColumnsRefs<ObjShape, Refs>;
+}
+
+export interface ResultColumn<ObjShape> extends SQLAliasedExpression {
+  /**
+   * The result set this column belongs to - table, view, subquery
+   */
+  resultSet: ResultSet<ObjShape>;
+
+  /**
+   * Returns a sql expression to be used in a select statement to
+   * get the desired column with the current **alias**.
+   *
+   * For tables: tst.tst_id as "_id"
+   * For calculated fields: (subQuery) as "calc"
+   * For subtables, subtable.columnAlias as "columnAlias"
+   *
+   * @returns {SQLExpression}
+   */
+  toSelectSql: () => SQLAliasedExpression;
+
+  /**
+   * Just refer to the field using the table alias and the field
+   * database name, without adding or using the alias. It's the
+   * same as toSql()
+   *
+   * For tables: tst.tst_id
+   * For calculated fields: (subQuery)
+   * For subtables: subtable.columnAlias
+   *
+   * @param qryContext
+   */
+  toReferenceSql: () => SQLExpression;
 }
 
 /**
  * Represents a table used in a from clause of a sql statement.
  */
-export interface IFromTable<T> extends ISQLExpression {
-  alias?: string;
-  tbl: IDBTable<T>;
-  toReferenceSql: IToSqlFn;
-  readonly fields: Map<keyof T, IFieldReference<T>>;
+export interface ReferencedTable<ObjShape>
+  extends ResultSet<
+    ObjShape,
+    TableFieldReferenceFn<ObjShape> | CalculatedFieldReferenceFn<ObjShape>
+  > {
+  tbl: IDBTable<ObjShape>;
+  readonly fields: Map<keyof ObjShape, TableFieldReference<ObjShape>>;
 }
 
 /**
@@ -71,16 +136,16 @@ export interface IFromTable<T> extends ISQLExpression {
  * fields and calculated fields. The key element is they need
  * a reference table to work
  */
-export interface IBaseFieldReference<Table = any> extends ISQLExpression {
-  readonly alias: string;
+export interface BaseTableFieldReference<Table = any>
+  extends ResultColumn<Table> {
   readonly qryTbl: ReferencedTable<Table>;
 }
 
-export interface ICalculatedFieldReference<Table = any>
-  extends IBaseFieldReference<Table> {
-  readonly field: ITableCalculateFieldDefinition<Table>;
+export interface CalculatedFieldReference<Table = any>
+  extends BaseTableFieldReference<Table> {
+  readonly field: TableCalculateFieldDefinition<Table>;
 
-  toSelectSql: () => ISQLExpression;
+  toSelectSql: () => SQLAliasedExpression;
 
   /**
    * Just refer to the field using the table alias and the field
@@ -88,7 +153,7 @@ export interface ICalculatedFieldReference<Table = any>
    * same as toSql()
    * @param qryContext
    */
-  readValueToSql: () => ISQLExpression;
+  readValueToSql: () => SQLExpression;
 }
 
 /**
@@ -99,87 +164,60 @@ export interface ICalculatedFieldReference<Table = any>
  * - in the where condition, as part of update statements, in the select
  * part of the statement.
  */
-export interface IFieldReference<Table = any>
-  extends IBaseFieldReference<Table> {
-  /**
-   * If the field has been aliased that alias is returned, otherwise
-   * the database name of the field
-   */
+export interface TableFieldReference<Table = any>
+  extends BaseTableFieldReference<Table> {
   readonly field: IDBField<Table>;
-  toSelectSql: () => ISQLExpression;
-
-  /**
-   * Just refer to the field using the table alias and the field
-   * database name, without adding or using the alias. It's the
-   * same as toSql()
-   * @param qryContext
-   */
-  toReferenceSql: () => ISQLExpression;
-  toUpdateFieldSql: (val: ISQLExpression) => ISQLExpression;
-  readValueToSql: (val?: ISQLExpression) => ISQLExpression;
-  writeValueToSQL: (val?: ISQLExpression) => ISQLExpression;
+  toUpdateFieldSql: (val: SQLExpression) => SQLExpression;
+  readValueToSql: (val?: SQLExpression) => SQLExpression;
+  writeValueToSQL: (val?: SQLExpression, isInsert?: boolean) => SQLExpression;
 }
 
-export function isIFieldReference(obj: any): obj is IFieldReference<any> {
-  if (
-    obj &&
-    typeof obj === 'object' &&
-    obj.field &&
-    typeof obj.toSelectSql === 'function' &&
-    typeof obj.toReferenceSql === 'function' &&
-    typeof obj.toUpdateFieldSql === 'function' &&
-    typeof obj.readValueToSql === 'function' &&
-    typeof obj.writeValueToSQL === 'function'
-  ) {
-    return true;
-  }
-  return false;
+export interface ColumnReferenceFn<ObjShape> extends SQLExpression {
+  (newAlias?: string): ResultColumn<ObjShape>;
 }
 
-export interface IFieldReferenceFn<T = any> extends ISQLExpression {
-  (newAlias?: string): IFieldReference<T>;
+export interface TableFieldReferenceFn<ObjShape> extends SQLExpression {
+  (newAlias?: string): TableFieldReference<ObjShape>;
 }
 
-export interface ICalculatedFieldReferenceFn<T = any> extends ISQLExpression {
-  (newAlias?: string): ICalculatedFieldReference<T>;
+export interface CalculatedFieldReferenceFn<ObjShape> extends SQLExpression {
+  (newAlias?: string): CalculatedFieldReference<ObjShape>;
 }
 
-export type TableFieldsMap<TableDef> = {
-  [P in keyof Required<
-    TableDef
-  >]: TableDef[P] extends ITableCalculateFieldDefinition<any>
-    ? ICalculatedFieldReference<TableDef>
-    : IFieldReferenceFn<TableDef>;
+export interface CalculatedFieldCalcFn<DataType = any> {
+  (qryTbl: ReferencedTable<DataType>): SQLExpression;
+}
+
+export interface TableCalculateFieldDefinition<DataType>
+  extends BaseFieldDefinition<DataType> {
+  calculation: CalculatedFieldCalcFn<DataType>;
+}
+
+export type ColumnsRefs<ObjShape, RefType = ColumnReferenceFn<ObjShape>> = {
+  [P in keyof Required<ObjShape>]: RefType;
 };
 
-export type ReferencedTable<T> = TableFieldsMap<T> & IFromTable<T>;
-
-export interface ITableCalculateFieldDefinition<DataType>
-  extends IBaseFieldDefinition<DataType> {
-  calculation: (qryTbl: ReferencedTable<DataType>) => ISQLExpression;
-}
-
-export interface ITableField<T> extends ITableFieldDefinition<T> {
+export interface TableField<T> extends TableFieldDefinition<T> {
   isCC: boolean;
   isInsertTimestamp: boolean;
   isUpdateTimestamp: boolean;
 }
 
-export interface ITableDefinition<DataType> {
+export interface TableDefinition<DataType> {
   dbName: string;
   name: string;
-  fields: ITableFieldDefinition<DataType>[];
-  calculatedFields?: ITableCalculateFieldDefinition<DataType>[];
+  fields: TableFieldDefinition<DataType>[];
+  calculatedFields?: TableCalculateFieldDefinition<DataType>[];
 }
 
-export interface ITable<DataType> extends ITableDefinition<DataType> {
+export interface Table<DataType> extends TableDefinition<DataType> {
   hasCC: boolean;
   hasInsertTimestamp: boolean;
   hasUpdateTimestamp: boolean;
 }
 
-export interface IDBField<T> extends ITableField<T> {
-  readonly name: keyof T;
+export interface IDBField<ObjShape> extends TableField<ObjShape> {
+  readonly name: keyof ObjShape;
   dbName: string;
   isEncrypted: boolean;
   isHash: boolean;
@@ -189,15 +227,27 @@ export interface IDBField<T> extends ITableField<T> {
   isUpdateTimestamp: boolean;
 }
 
-export interface IDBTable<DataType = any> extends ITable<DataType> {
-  fields: IDBField<DataType>[];
-  ccField?: IDBField<DataType>;
-  insertTimestampField?: IDBField<DataType>;
-  updateTimestampField?: IDBField<DataType>;
+export interface IDBTable<ObjShape = any> extends Table<ObjShape> {
+  fields: IDBField<ObjShape>[];
+  ccField?: IDBField<ObjShape>;
+  insertTimestampField?: IDBField<ObjShape>;
+  updateTimestampField?: IDBField<ObjShape>;
   getFieldByName: (
-    fieldName: keyof DataType
-  ) => ITableFieldDefinition<DataType> | undefined;
+    fieldName: keyof ObjShape
+  ) => TableFieldDefinition<ObjShape> | undefined;
   getFieldByDbName: (
     fieldDbName: string
-  ) => ITableFieldDefinition<DataType> | undefined;
+  ) => TableFieldDefinition<ObjShape> | undefined;
+}
+
+export function isIDBTable(obj: any): obj is IDBTable<any> {
+  if (!(obj && typeof obj === 'object')) {
+    return false;
+  }
+  return Boolean(
+    obj.getFieldByName &&
+      typeof obj.getFieldByName === 'function' &&
+      obj.getFieldByDbName &&
+      typeof obj.getFieldByDbName === 'function'
+  );
 }

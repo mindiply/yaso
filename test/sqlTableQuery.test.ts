@@ -1,5 +1,5 @@
 import {
-  ITableDefinition,
+  TableDefinition,
   tbl,
   insertQuerySql,
   and,
@@ -25,7 +25,6 @@ import {
   value,
   min,
   caseWhen,
-  sqlNull,
   mod
 } from '../src';
 
@@ -40,7 +39,7 @@ interface ITestTbl {
 }
 
 describe('Testing table update queries', () => {
-  const tblDef: ITableDefinition<ITestTbl> = {
+  const tblDef: TableDefinition<ITestTbl> = {
     name: 'test',
     dbName: 'tst',
     fields: [
@@ -73,7 +72,7 @@ describe('Testing table update queries', () => {
   test('Basic update', () => {
     const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('newName')},
-      where: equals(qryTbl._id, prm('_id'))
+      where: equals(qryTbl.cols._id, prm('_id'))
     }));
     const expectedSql = `update tst
 set
@@ -86,7 +85,7 @@ where tst.tst_id = $[_id]`;
   test('Update 2 fields', () => {
     const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('name'), normal: 'normalValue'},
-      where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)])
+      where: and([equals(qryTbl.cols._id, 18), moreThan(qryTbl.cols.cc, 3)])
     }));
     const expectedSql = `update tst
 set
@@ -104,7 +103,7 @@ where
   test('Update 2 fields and return all of them', () => {
     const sql = updateQuerySql(tstDbTbl, qryTbl => ({
       fields: {name: prm('name'), normal: 'normalValue'},
-      where: and([equals(qryTbl._id, 18), moreThan(qryTbl.cc, 3)]),
+      where: and([equals(qryTbl.cols._id, 18), moreThan(qryTbl.cols.cc, 3)]),
       returnFields: true
     }));
     const expectedSql = `update tst
@@ -133,7 +132,7 @@ describe('Testing insert queries', () => {
     description: string;
     when: Date;
   }
-  const noUpdateTblDef: ITableDefinition<INoUpdateTbl> = {
+  const noUpdateTblDef: TableDefinition<INoUpdateTbl> = {
     name: 'noupdate',
     dbName: 'nup',
     fields: [
@@ -172,7 +171,7 @@ returning nup.descr as "description"`;
     description: string;
     when: Date;
   }
-  const updateTblDef: ITableDefinition<IUpdateTbl> = {
+  const updateTblDef: TableDefinition<IUpdateTbl> = {
     name: 'noupdate',
     dbName: 'nup',
     fields: [
@@ -235,7 +234,7 @@ describe('Test table select queries', () => {
     when: Date;
     cc: number;
   }
-  const tstDef: ITableDefinition<ITest> = {
+  const tstDef: TableDefinition<ITest> = {
     name: 'Test',
     dbName: 'tst',
     fields: [
@@ -274,7 +273,7 @@ from tst
 where tst.tst_id = 'idtest'`;
     const sql = tableSelectSql(qryTbl, tst => ({
       fields: ['name', 'when'],
-      where: equals(tst.id, 'idtest')
+      where: equals(tst.cols.id, 'idtest')
     }));
     expect(sql).toBe(expectedSql);
   });
@@ -283,7 +282,7 @@ where tst.tst_id = 'idtest'`;
     const expectedSql = `select count(1) as "nTst" from tst where tst.tst_id = 'idtest'`;
     const sql = tableSelectSql(qryTbl, tst => ({
       fields: [alias(count(1), 'nTst')],
-      where: equals(tst.id, 'idtest')
+      where: equals(tst.cols.id, 'idtest')
     }));
     expect(sql).toBe(expectedSql);
   });
@@ -299,7 +298,7 @@ where
   tst.tst_id = $[id]
   or tst.tst_id is null`;
     const sql = tableSelectSql(qryTbl, tst => ({
-      where: or([equals(tst.id, prm('id')), isNull(tst.id)])
+      where: or([equals(tst.cols.id, prm('id')), isNull(tst.cols.id)])
     }));
     expect(sql).toBe(expectedSql);
   });
@@ -312,14 +311,19 @@ where
   tst.tst_created_at as "when"
 from tst
 where
-  tst.tst_id =
-    (select max(tst2.tst_id) from tst as "tst2" where tst2.tst_name = $[name])`;
+  tst.tst_id = (
+    select max(tst2.tst_id) as "maxId"
+    from tst as "tst2"
+    where tst2.tst_name = $[name]
+  )`;
     const sql = qryTbl
       .selectQry(tst => ({
         where: equals(
-          tst.id,
+          tst.cols.id,
           selectFrom(getDbTableByDbName<ITest>('tst'), (qry, tst2) => {
-            qry.fields(max(tst2.id)).where(equals(tst2.name, prm('name')));
+            qry
+              .fields(alias(max(tst2.cols.id), 'maxId'))
+              .where(equals(tst2.cols.name, prm('name')));
           })
         )
       }))
@@ -330,56 +334,65 @@ where
   test('case expression', () => {
     const sql = qryTbl.selectQrySql({
       fields: [
-        caseWhen(
-          [
-            {
-              condition: equals(mod(qryTbl.id, 2), 0),
-              then: 'even'
-            }
-          ],
-          value('odd')
+        alias(
+          caseWhen(
+            [
+              {
+                condition: equals(mod(qryTbl.cols.id, 2), 0),
+                then: 'even'
+              }
+            ],
+            value('odd')
+          ),
+          'evenOrOdd'
         )
       ]
     });
     expect(sql).toBe(
-      `select case when tst.tst_id % 2 = 0 then 'even' else 'odd' end from tst`
+      `select (case when tst.tst_id % 2 = 0 then 'even' else 'odd' end) as "evenOrOdd"
+from tst`
     );
   });
 
   test('multi case expression', () => {
     const sql = qryTbl.selectQrySql({
       fields: [
-        caseWhen(
-          [
-            {
-              condition: equals(mod(qryTbl.id, 4), 0),
-              then: 'div 4 rest 0'
-            },
-            {
-              condition: equals(mod(qryTbl.id, 4), 1),
-              then: 'div 4 rest 1'
-            },
-            {
-              condition: equals(mod(qryTbl.id, 4), 2),
-              then: 'div 4 rest 2'
-            },
-            {
-              condition: equals(mod(qryTbl.id, 4), 3),
-              then: 'div 4 rest 3'
-            }
-          ],
-          value('this is utterly, utterly unexpected boss')
+        alias(
+          caseWhen(
+            [
+              {
+                condition: equals(mod(qryTbl.cols.id, 4), 0),
+                then: 'div 4 rest 0'
+              },
+              {
+                condition: equals(mod(qryTbl.cols.id, 4), 1),
+                then: 'div 4 rest 1'
+              },
+              {
+                condition: equals(mod(qryTbl.cols.id, 4), 2),
+                then: 'div 4 rest 2'
+              },
+              {
+                condition: equals(mod(qryTbl.cols.id, 4), 3),
+                then: 'div 4 rest 3'
+              }
+            ],
+            value('this is utterly, utterly unexpected boss')
+          ),
+          'Rest'
         )
       ]
     });
     expect(sql).toBe(`select
-  case
-    when tst.tst_id % 4 = 0 then 'div 4 rest 0'
-    when tst.tst_id % 4 = 1 then 'div 4 rest 1'
-    when tst.tst_id % 4 = 2 then 'div 4 rest 2'
-    when tst.tst_id % 4 = 3 then 'div 4 rest 3'
-    else 'this is utterly, utterly unexpected boss'
-  end
+  (
+    case
+      when tst.tst_id % 4 = 0 then 'div 4 rest 0'
+      when tst.tst_id % 4 = 1 then 'div 4 rest 1'
+      when tst.tst_id % 4 = 2 then 'div 4 rest 2'
+      when tst.tst_id % 4 = 3 then 'div 4 rest 3'
+      else 'this is utterly, utterly unexpected boss'
+    end
+  ) as "Rest"
 from tst`);
   });
 
@@ -387,21 +400,24 @@ from tst`);
     const sql = qryTbl.selectQrySql(tst => ({
       fields: [
         alias(
-          castAs(concat('{"maxId":"', concat(min(tst.id), '"}')), 'jsonb'),
+          castAs(concat('{"maxId":"', concat(min(tst.cols.id), '"}')), 'jsonb'),
           'json'
         )
       ],
       where: exists(
         tbl(qryTbl.tbl).selectQry(tst2 => ({
-          fields: [value(1)],
-          where: moreThan(tst2.id, tst.id)
+          fields: [alias(value(1), 'one')],
+          where: moreThan(tst2.cols.id, tst.cols.id)
         }))
       )
     }));
     expect(sql).toBe(
       `select cast('{"maxId":"' || min(tst.tst_id) || '"}' as jsonb) as "json"
 from tst
-where exists (select 1 from tst as "tst2" where tst2.tst_id > tst.tst_id)`
+where
+  exists (
+    select 1 as "one" from tst as "tst2" where tst2.tst_id > tst.tst_id
+  )`
     );
   });
 });
@@ -414,7 +430,7 @@ describe('Select, insert and update with encrypted and hashed fields', () => {
     nameDigest: string;
     description: string;
   }
-  const tstDef: ITableDefinition<IEHTst> = {
+  const tstDef: TableDefinition<IEHTst> = {
     name: 'EncryptionHashingTest',
     dbName: 'enc',
     fields: [
@@ -451,8 +467,11 @@ where enc.pw_hash = crypt($[pw], enc.pw_hash)
 order by enc.name`;
     const sql = tstQry.selectQrySql({
       fields: ['name'],
-      where: equals(tstQry.pwHash, tstQry.pwHash().readValueToSql(prm('pw'))),
-      orderByFields: [{field: tstQry.name}]
+      where: equals(
+        tstQry.cols.pwHash,
+        tstQry.cols.pwHash().readValueToSql(prm('pw'))
+      ),
+      orderByFields: [{field: tstQry.cols.name}]
     });
     expect(sql).toBe(expectdSql);
   });
@@ -465,7 +484,7 @@ describe('Delete queries', () => {
     when: Date;
     cc: number;
   }
-  const tstDef: ITableDefinition<ITest> = {
+  const tstDef: TableDefinition<ITest> = {
     name: 'Test',
     dbName: 'tst',
     fields: [
@@ -499,8 +518,8 @@ describe('Delete queries', () => {
     expect(
       deleteQuerySql(qryTbl, {
         where: and([
-          equals(qryTbl.name, prm('name')),
-          moreOrEqual(qryTbl.cc, 2)
+          equals(qryTbl.cols.name, prm('name')),
+          moreOrEqual(qryTbl.cols.cc, 2)
         ])
       })
     ).toBe(`delete from tst
@@ -517,7 +536,7 @@ describe('Regressions', () => {
     when: Date;
     cc: number;
   }
-  const tstDef: ITableDefinition<ITest> = {
+  const tstDef: TableDefinition<ITest> = {
     name: 'Test',
     dbName: 'tst',
     fields: [
@@ -570,7 +589,7 @@ describe('Regressions', () => {
           nonPresentName: 'Another',
           when: new Date(2020, 0, 1)
         },
-        where: equals(qryTbl.id, value(1))
+        where: equals(qryTbl.cols.id, value(1))
       })
     ).toThrow(new TypeError(`Field nonPresentName not mapped`));
   });

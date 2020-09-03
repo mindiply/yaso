@@ -10,7 +10,6 @@ export {
   isNull,
   isNotNull,
   add,
-  rawSql,
   moreThan,
   lessOrEqual,
   moreOrEqual,
@@ -29,7 +28,6 @@ export {
   list,
   sqlIn,
   notIn,
-  orderBy,
   value,
   caseWhen,
   nullValue,
@@ -37,7 +35,8 @@ export {
   concat,
   sqlNull,
   castAs,
-  exists
+  exists,
+  join
 } from './query/SQLExpression';
 
 export {
@@ -51,4 +50,6 @@ export {selectFrom} from './query/sqlQuery';
 export {usePg} from './db/pgSQL';
 export {tblCCFields} from './query/utils';
 export {ITbl, IId, Id} from './query/types';
-export {ISQLExpression} from './dbTypes';
+export {SQLExpression} from './dbTypes';
+export {rawSql} from './query/BaseSqlExpressions';
+export {orderBy} from './query/sqlQuery';

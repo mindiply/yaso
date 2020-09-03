@@ -1,4 +1,12 @@
-import {add, count, equals, ITableDefinition, selectFrom, tbl} from '../src';
+import {
+  add,
+  count,
+  equals,
+  TableDefinition,
+  selectFrom,
+  tbl,
+  alias
+} from '../src';
 
 interface ITst {
   _id: string;
@@ -9,7 +17,7 @@ interface ITst {
   calculation: () => number;
 }
 
-const tblDef: ITableDefinition<ITst> = {
+const tblDef: TableDefinition<ITst> = {
   name: 'Test',
   dbName: 'tst',
   fields: [
@@ -31,7 +39,7 @@ const tblDef: ITableDefinition<ITst> = {
     {
       name: 'simpleCF',
       dbName: 'simpleCF',
-      calculation: tblRef => add(tblRef.cc, tblRef.cc)
+      calculation: tblRef => add(tblRef.cols.cc, tblRef.cols.cc)
     },
     {
       name: 'complexCF',
@@ -39,8 +47,8 @@ const tblDef: ITableDefinition<ITst> = {
       calculation: tblRef =>
         selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
           qry
-            .fields(count(tbl2Ref._id))
-            .where(equals(tbl2Ref.name, tblRef.name));
+            .fields(alias(count(tbl2Ref.cols._id), 'idsCount'))
+            .where(equals(tbl2Ref.cols.name, tblRef.cols.name));
         })
     },
     {
@@ -49,8 +57,8 @@ const tblDef: ITableDefinition<ITst> = {
       calculation: tblRef =>
         selectFrom(tbl(tblDef), (qry, tbl2Ref) => {
           qry
-            .fields(count(tbl2Ref._id))
-            .where(equals(tbl2Ref.name, tblRef.name));
+            .fields(alias(count(tbl2Ref.cols._id), 'idsCount'))
+            .where(equals(tbl2Ref.cols.name, tblRef.cols.name));
         })
     }
   ]

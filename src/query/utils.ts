@@ -1,13 +1,17 @@
 import indentString from 'indent-string';
-import {IQueryContext, ISQLExpression, ITableFieldDefinition} from '../dbTypes';
+import {IQueryContext, SQLExpression, TableFieldDefinition} from '../dbTypes';
 import {ITbl, MAX_SINGLE_LINE_STATEMENT_LENGTH} from './types';
 
 export const countNLines = (value: string): number =>
   String(value).split(/\r\n|\r|\n/).length;
 
-export const parenthesizeSql = (sqlStr: string): string => {
+export const parenthesizeSql = (
+  sqlStr: string,
+  forceLineBreak = false
+): string => {
   const nLines = countNLines(sqlStr);
   const doBreak =
+    forceLineBreak ||
     nLines > 1 ||
     (nLines === 0 && sqlStr.length + 2 > MAX_SINGLE_LINE_STATEMENT_LENGTH);
   return `(${doBreak ? '\n' : ''}${doBreak ? indentString(sqlStr, 2) : sqlStr}${
@@ -33,15 +37,20 @@ export function lastLineLength(text: string): number {
 
 export const unaryOperatorString = (
   qryContext: IQueryContext,
-  expression: ISQLExpression,
+  expression: SQLExpression,
   operator: string,
   isLeftOperator = true,
   parenthesizeExpression = true
 ): string => {
   const opLen = operator.length + 1;
+  const expressionInnerSql = expression.toSql(qryContext);
+  const needsMultipleLines =
+    countNLines(expressionInnerSql) > 1 ||
+    opLen + expressionInnerSql.length + (parenthesizeExpression ? 2 : 0) >
+      MAX_SINGLE_LINE_STATEMENT_LENGTH;
   const expressionSql = parenthesizeExpression
-    ? parenthesizeSql(expression.toSql(qryContext))
-    : expression.toSql(qryContext);
+    ? parenthesizeSql(expressionInnerSql, needsMultipleLines)
+    : expressionInnerSql;
   const expressionLen = isLeftOperator
     ? firstLineLength(expressionSql)
     : lastLineLength(expressionSql);
@@ -66,9 +75,9 @@ export const unaryOperatorString = (
  */
 export const infixString = (
   qryContext: IQueryContext,
-  left: ISQLExpression,
+  left: SQLExpression,
   infixOperator: string,
-  right: ISQLExpression
+  right: SQLExpression
 ): string => {
   const leftSql = left.isSimpleValue()
     ? left.toSql(qryContext)
@@ -94,7 +103,7 @@ export const infixString = (
 
 export const tblCCFields = <T extends ITbl>(
   tbl: string
-): ITableFieldDefinition<T>[] => {
+): TableFieldDefinition<T>[] => {
   return [
     {
       dbName: `${tbl}_cc`,

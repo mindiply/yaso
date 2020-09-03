@@ -4,7 +4,7 @@ import {
   value
 } from '../query/SQLExpression';
 import {ISelectStatement} from '../query/statements';
-import {IFieldReference, ISQLExpression} from '../dbTypes';
+import {TableFieldReference, SQLExpression} from '../dbTypes';
 import {DataValue} from '../query/types';
 
 /**
@@ -12,15 +12,15 @@ import {DataValue} from '../query/types';
  * SQL syntax to a specific database engine (and potentially client library)
  */
 export interface IDBDialect {
-  decryptField: (expression: ISQLExpression) => ISQLExpression;
-  encryptField: (expression: ISQLExpression) => ISQLExpression;
-  hashField: (expression: ISQLExpression) => ISQLExpression;
-  hashPwField: (expression: ISQLExpression) => ISQLExpression;
+  decryptField: (expression: SQLExpression) => SQLExpression;
+  encryptField: (expression: SQLExpression) => SQLExpression;
+  hashField: (expression: SQLExpression) => SQLExpression;
+  hashPwField: (expression: SQLExpression) => SQLExpression;
   hashPwFieldVal: <T>(
-    valueExpression: ISQLExpression,
-    fieldRef?: IFieldReference<T>
-  ) => ISQLExpression;
-  now: () => ISQLExpression;
+    valueExpression: SQLExpression,
+    fieldRef?: TableFieldReference<T>
+  ) => SQLExpression;
+  now: () => SQLExpression;
   namedParameter: (parameterName: string) => string;
 
   /**
@@ -31,10 +31,10 @@ export interface IDBDialect {
    * @param val1
    * @param val2
    */
-  nullValue: <LeftTableDef = any, RightTableDef = any>(
-    val1: DataValue<LeftTableDef> | ISQLExpression,
-    val2: DataValue<RightTableDef> | ISQLExpression
-  ) => ISQLExpression;
+  nullValue: (
+    val1: DataValue | SQLExpression,
+    val2: DataValue | SQLExpression
+  ) => SQLExpression;
 
   /**
    * Given a select statement in input, allows to manipulate it
@@ -50,35 +50,33 @@ export interface IDBDialect {
   /**
    * String concatenation operator
    *
-   * @param {DataValue<LeftTableDef> | ISQLExpression} val1
-   * @param {DataValue<RightTableDef> | ISQLExpression} val2
-   * @returns {ISQLExpression}
+   * @param {DataValue | SQLExpression} val1
+   * @param {DataValue | SQLExpression} val2
+   * @returns {SQLExpression}
    */
-  concat: <LeftTableDef = any, RightTableDef = any>(
-    val1: DataValue<LeftTableDef> | ISQLExpression,
-    val2: DataValue<RightTableDef> | ISQLExpression
-  ) => ISQLExpression;
+  concat: (
+    val1: DataValue | SQLExpression,
+    val2: DataValue | SQLExpression
+  ) => SQLExpression;
 }
 
 class NoDialect implements IDBDialect {
-  decryptField = (expression: ISQLExpression): ISQLExpression => expression;
-  encryptField = (expression: ISQLExpression): ISQLExpression => expression;
-  hashField = (expression: ISQLExpression): ISQLExpression => expression;
-  hashPwField = (expression: ISQLExpression): ISQLExpression => expression;
-  hashPwFieldVal = (valueExpression: ISQLExpression): ISQLExpression =>
+  decryptField = (expression: SQLExpression): SQLExpression => expression;
+  encryptField = (expression: SQLExpression): SQLExpression => expression;
+  hashField = (expression: SQLExpression): SQLExpression => expression;
+  hashPwField = (expression: SQLExpression): SQLExpression => expression;
+  hashPwFieldVal = (valueExpression: SQLExpression): SQLExpression =>
     valueExpression;
   now = () => value('now');
   namedParameter = (name: string) => name;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
-  concat = <LeftTableDef = any, RightTableDef = any>(
-    v1: ISQLExpression | DataValue<LeftTableDef>,
-    v2: ISQLExpression | DataValue<LeftTableDef>
-  ) => new BinaryOperatorExpression(v1, '||', v2);
-  nullValue = <LeftTableDef = any, RightTableDef = any>(
-    val1: ISQLExpression | DataValue<LeftTableDef>,
-    val2: ISQLExpression | DataValue<RightTableDef>
-  ): ISQLExpression => caseWhen([{condition: val1, then: val1}], val2);
+  concat = (v1: SQLExpression | DataValue, v2: SQLExpression | DataValue) =>
+    new BinaryOperatorExpression(v1, '||', v2);
+  nullValue = (
+    val1: SQLExpression | DataValue,
+    val2: SQLExpression | DataValue
+  ): SQLExpression => caseWhen([{condition: val1, then: val1}], val2);
 }
 
 let currentDialect: IDBDialect = new NoDialect();

@@ -1,10 +1,9 @@
 import {
   IDBField,
   IDBTable,
-  ITableCalculateFieldDefinition,
-  ITableDefinition,
-  ITableField,
-  ITableFieldDefinition
+  TableCalculateFieldDefinition,
+  TableDefinition,
+  TableFieldDefinition
 } from './dbTypes';
 
 const ccRE = /_cc$/i;
@@ -14,7 +13,7 @@ const updatedAtRE = /_updated_at$/i;
 const tableRegistryByName: Map<string, IDBTable<any>> = new Map();
 const tableRegistryByDbName: Map<string, IDBTable<any>> = new Map();
 
-export class DBField<T> implements ITableField<T> {
+export class DBTableField<T> implements IDBField<T> {
   public readonly name: keyof T;
   public readonly dbName: string;
   public readonly isEncrypted: boolean;
@@ -24,7 +23,7 @@ export class DBField<T> implements ITableField<T> {
   public readonly isInsertTimestamp: boolean;
   public readonly isUpdateTimestamp: boolean;
 
-  constructor(def: ITableFieldDefinition<T>) {
+  constructor(def: TableFieldDefinition<T>) {
     this.name = def.name;
     this.dbName = def.dbName;
     this.isEncrypted = def.isEncrypted || false;
@@ -44,21 +43,21 @@ export class DBTable<DataType = any> implements IDBTable<DataType> {
   public readonly hasCC: boolean;
   public readonly hasInsertTimestamp: boolean;
   public readonly hasUpdateTimestamp: boolean;
-  public readonly fields: IDBField<DataType>[];
+  public readonly fields: DBTableField<DataType>[];
   public readonly calculatedFields: Array<
-    ITableCalculateFieldDefinition<DataType>
+    TableCalculateFieldDefinition<DataType>
   >;
-  public readonly ccField?: IDBField<DataType>;
-  public readonly insertTimestampField?: IDBField<DataType>;
-  public readonly updateTimestampField?: IDBField<DataType>;
+  public readonly ccField?: DBTableField<DataType>;
+  public readonly insertTimestampField?: DBTableField<DataType>;
+  public readonly updateTimestampField?: DBTableField<DataType>;
 
-  protected readonly fieldsByDBName: Map<string, IDBField<DataType>>;
-  protected readonly fieldsByName: Map<keyof DataType, IDBField<DataType>>;
+  protected readonly fieldsByDBName: Map<string, DBTableField<DataType>>;
+  protected readonly fieldsByName: Map<keyof DataType, DBTableField<DataType>>;
 
-  constructor(def: ITableDefinition<DataType>) {
+  constructor(def: TableDefinition<DataType>) {
     this.name = def.name;
     this.dbName = def.dbName;
-    this.fields = def.fields.map(field => new DBField(field));
+    this.fields = def.fields.map(field => new DBTableField(field));
     this.calculatedFields = def.calculatedFields
       ? def.calculatedFields.map(calcField => calcField)
       : [];
@@ -93,25 +92,25 @@ export class DBTable<DataType = any> implements IDBTable<DataType> {
 
   public getFieldByName = (
     fieldName: keyof DataType
-  ): ITableFieldDefinition<DataType> | undefined => {
+  ): TableFieldDefinition<DataType> | undefined => {
     return this.fieldsByName.get(fieldName);
   };
 
   public getFieldByDbName = (
     fieldDbName: string
-  ): ITableFieldDefinition<DataType> | undefined => {
+  ): TableFieldDefinition<DataType> | undefined => {
     return this.fieldsByDBName.get(fieldDbName);
   };
 }
 
-export const createDBTbl = <T>(tblDef: ITableDefinition<T>): IDBTable<T> => {
+export const createDBTbl = <T>(tblDef: TableDefinition<T>): IDBTable<T> => {
   const dbTable: IDBTable<T> = new DBTable<T>(tblDef);
   tableRegistryByName.set(dbTable.name, dbTable);
   tableRegistryByDbName.set(dbTable.dbName, dbTable);
   return dbTable;
 };
 
-export const isDBTable = <T>(obj: DBTable<T> | any): obj is IDBTable<T> =>
+export const isDBTable = <T>(obj: IDBTable<T> | any): obj is IDBTable<T> =>
   obj && obj instanceof DBTable;
 
 export function getDbTableByName<T>(tableName: string): IDBTable<T> {

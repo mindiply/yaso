@@ -1,16 +1,12 @@
-import {
-  BinaryOperatorExpression,
-  FormattedSqlValueExpression,
-  QueryContext,
-  rawSql,
-  value
-} from '../query/SQLExpression';
+import {BinaryOperatorExpression, value} from '../query/SQLExpression';
 import {IDBDialect, setDbDialect} from './index';
 import {ISelectStatement} from '../query/statements';
-import {IFieldReference, IQueryContext, ISQLExpression} from '../dbTypes';
+import {TableFieldReference, IQueryContext, SQLExpression} from '../dbTypes';
 import {DataValue, MAX_SINGLE_LINE_STATEMENT_LENGTH} from '../query/types';
 import indentString from 'indent-string';
 import {parenthesizeSql} from '../query/utils';
+import {QueryContext} from '../query/queryContext';
+import {FormattedSqlValueExpression, rawSql} from '../query/BaseSqlExpressions';
 
 const encryptFormatFn = (fldText = '') =>
   `encode(pgp_sym_encrypt(${fldText}, $[encryptionKey]), 'hex')`;
@@ -28,14 +24,13 @@ const hashPwValFormatFn = (fldText = '', fldRefText = '') =>
   `crypt(${fldText}, ${fldRefText})`;
 
 interface ICoalesceSqlExpression {
-  expressions: ISQLExpression[];
+  expressions: SQLExpression[];
 }
 
-class CoalesceSqlExpression<LeftTableDef = any>
-  implements ICoalesceSqlExpression {
-  public expressions: ISQLExpression[];
+class CoalesceSqlExpression implements ICoalesceSqlExpression {
+  public expressions: SQLExpression[];
 
-  constructor(...expressions: Array<DataValue<LeftTableDef> | ISQLExpression>) {
+  constructor(...expressions: Array<DataValue | SQLExpression>) {
     this.expressions = expressions.map(expression => value(expression));
   }
 
@@ -63,22 +58,22 @@ class CoalesceSqlExpression<LeftTableDef = any>
 }
 
 export class PgDialect implements IDBDialect {
-  public encryptField = (value: ISQLExpression): ISQLExpression =>
+  public encryptField = (value: SQLExpression): SQLExpression =>
     new FormattedSqlValueExpression(encryptFormatFn, value);
 
-  public decryptField = (expression: ISQLExpression): ISQLExpression =>
+  public decryptField = (expression: SQLExpression): SQLExpression =>
     new FormattedSqlValueExpression(decryptFormatFn, expression);
 
-  public hashField = (expression: ISQLExpression): ISQLExpression =>
+  public hashField = (expression: SQLExpression): SQLExpression =>
     new FormattedSqlValueExpression(hashFormatFn, expression);
 
-  public hashPwField = (expression: ISQLExpression): ISQLExpression =>
+  public hashPwField = (expression: SQLExpression): SQLExpression =>
     new FormattedSqlValueExpression(hashPwFormatFn, expression);
 
   public hashPwFieldVal = <T>(
-    valueExpression: ISQLExpression,
-    fieldRef?: IFieldReference<T>
-  ): ISQLExpression => {
+    valueExpression: SQLExpression,
+    fieldRef?: TableFieldReference<T>
+  ): SQLExpression => {
     if (!fieldRef) return valueExpression;
     return new FormattedSqlValueExpression(hashPwValFormatFn, [
       valueExpression,
@@ -100,16 +95,13 @@ export class PgDialect implements IDBDialect {
     return selectStatement;
   };
 
-  nullValue = <LeftTableDef = any, RightTableDef = any>(
-    val1: ISQLExpression | DataValue<LeftTableDef>,
-    val2: ISQLExpression | DataValue<RightTableDef>
-  ): ISQLExpression =>
-    new CoalesceSqlExpression(val1, val2 as DataValue<LeftTableDef>);
+  nullValue = (
+    val1: SQLExpression | DataValue,
+    val2: SQLExpression | DataValue
+  ): SQLExpression => new CoalesceSqlExpression(val1, val2 as DataValue);
 
-  concat = <LeftTableDef = any, RightTableDef = any>(
-    v1: ISQLExpression | DataValue<LeftTableDef>,
-    v2: ISQLExpression | DataValue<LeftTableDef>
-  ) => new BinaryOperatorExpression(v1, '||', v2);
+  concat = (v1: SQLExpression | DataValue, v2: SQLExpression | DataValue) =>
+    new BinaryOperatorExpression(v1, '||', v2);
 }
 
 export const usePg = () => {

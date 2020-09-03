@@ -20,6 +20,24 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+
+## [0.0.20] - 2020-09-03
+### Breaking changes
+- The columns of resultsets and queries are now accessed via
+the cols member, rather than directly for the queryTable object.
+This avoids any potential conflicts with the other functions
+exported by the query objects and simplifies typings
+
+### Added
+- It's now possible adding a select query in the
+from clause of a select query, e.g.
+
+    select SQ._id from (
+        select tst.tst_id as "_id"
+        from tst
+        order by tst_name
+    ) as SQ 
+ß
 ## [0.0.19] - 2020-07-30
 
 ### Fixes

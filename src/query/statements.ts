@@ -11,8 +11,8 @@
  */
 
 import {MAX_SINGLE_LINE_STATEMENT_LENGTH} from './types';
-import {QueryContext} from './SQLExpression';
-import {IQueryContext, ISQLExpression} from '../dbTypes';
+import {IQueryContext, SQLExpression} from '../dbTypes';
+import {QueryContext} from './queryContext';
 
 /**
  * Interface to manage blocks that make up a Sql statement (select block,
@@ -24,10 +24,10 @@ import {IQueryContext, ISQLExpression} from '../dbTypes';
  */
 interface IClauses {
   nStatementClauses: () => number;
-  addClause: (name: string, block: ISQLExpression, index?: number) => void;
-  replaceClause: (index: number, block: ISQLExpression) => void;
+  addClause: (name: string, block: SQLExpression, index?: number) => void;
+  replaceClause: (index: number, block: SQLExpression) => void;
   moveClause: (fromIndex: number, toIndex: number) => void;
-  getClauseByIndex: (index: number) => ISQLExpression;
+  getClauseByIndex: (index: number) => SQLExpression;
   deleteClauseByIndex: (index: number) => void;
   indexOfClause: (blockName: string) => number;
 }
@@ -40,11 +40,11 @@ interface IClauses {
  * The SQL statement interface is meant to be used by higher level function and classes,
  * not directly by users of the library.
  */
-export interface IStatement extends ISQLExpression, IClauses {}
+export interface IStatement extends SQLExpression, IClauses {}
 
 export class Statement implements IStatement {
   protected blocks: string[];
-  protected blocksMap: Map<string, ISQLExpression>;
+  protected blocksMap: Map<string, SQLExpression>;
 
   constructor() {
     this.blocks = [];
@@ -53,7 +53,7 @@ export class Statement implements IStatement {
 
   public nStatementClauses = () => this.blocks.length;
 
-  public addClause = (name: string, block: ISQLExpression, index?: number) => {
+  public addClause = (name: string, block: SQLExpression, index?: number) => {
     const existingIndex = this.blocks.indexOf(name);
     const insertIndex =
       index && index > 0 && index < this.blocks.length
@@ -69,7 +69,7 @@ export class Statement implements IStatement {
     this.blocksMap.set(name, block);
   };
 
-  public replaceClause = (index: number, block: ISQLExpression): void => {
+  public replaceClause = (index: number, block: SQLExpression): void => {
     if (index < 0 || index >= this.blocks.length) {
       return;
     }
@@ -89,7 +89,7 @@ export class Statement implements IStatement {
     this.blocks.splice(toIndex, 0, blockName);
   };
 
-  public getClauseByIndex = (index: number): ISQLExpression => {
+  public getClauseByIndex = (index: number): SQLExpression => {
     if (index < 0 || index >= this.blocks.length) {
       throw new Error('Block does not exist');
     }

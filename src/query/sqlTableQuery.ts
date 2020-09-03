@@ -2,33 +2,29 @@ import indentString from 'indent-string';
 import {
   BaseReferenceTable,
   createReferencedTable,
-  FieldReference,
   isReferencedTable
 } from './sqlTableFieldReference';
 import {createDBTbl, isDBTable} from '../dbModel';
 import {countNLines} from './utils';
+import {AliasSqlExpression, transformFieldUpdatesToSql} from './SQLExpression';
 import {
-  deleteClause,
-  QueryContext,
-  transformFieldUpdatesToSql,
-  whereClause
-} from './SQLExpression';
-import {
-  ICalculatedFieldReferenceFn,
   IDBTable,
-  IFieldReference,
-  IFieldReferenceFn,
   IQueryContext,
-  ISQLExpression,
-  ITableDefinition,
-  IToSqlFn,
-  ReferencedTable
+  SQLExpression,
+  TableDefinition,
+  ReferencedTable,
+  SQLAliasedExpression,
+  TableFieldReference
 } from '../dbTypes';
-import {TableFieldUpdates, ISQLOrderByField, ISelectQry} from './types';
-import {selectFrom} from './sqlQuery';
+import {TableFieldUpdates, ISQLOrderByField, SelectQuery} from './types';
+import {deleteClause, selectFrom, whereClause} from './sqlQuery';
 import {Statement} from './statements';
+import {QueryContext} from './queryContext';
 
-export type SelectFieldRef<T> = keyof T | ISQLExpression | ReferencedTable<T>;
+export type SelectFieldRef<T> =
+  | keyof T
+  | AliasSqlExpression
+  | ReferencedTable<T>;
 
 interface ITableQryBaseParameters<T> {
   tbl: ReferencedTable<T>;
@@ -36,7 +32,7 @@ interface ITableQryBaseParameters<T> {
 
 interface ITableSelectQryParameters<T> {
   fields?: SelectFieldRef<T>[];
-  where?: ISQLExpression;
+  where?: SQLExpression;
   orderByFields?: ISQLOrderByField<T>[];
   maxRows?: number;
 }
@@ -47,11 +43,11 @@ export interface IInsertQryParameters<T> {
 }
 
 export interface IUpdateQryParameters<T> extends IInsertQryParameters<T> {
-  where: ISQLExpression;
+  where: SQLExpression;
 }
 
 export interface IDeleteQryParameters {
-  where?: ISQLExpression;
+  where?: SQLExpression;
 }
 
 abstract class BaseTableQuery<T> {
@@ -65,41 +61,29 @@ abstract class BaseTableQuery<T> {
     qryContext: IQueryContext = new QueryContext(),
     fieldRefs: SelectFieldRef<T>[] | undefined
   ): string => {
-    const fieldsToSelect: Array<ISQLExpression | IFieldReference<T>> = [];
+    const fieldsToSelect: Array<SQLAliasedExpression> = [];
     if (fieldRefs) {
       for (const fieldRef of fieldRefs) {
-        if (typeof fieldRef === 'string') {
-          fieldsToSelect.push(
-            (((this.refTbl as any) as BaseReferenceTable<T>)[
-              fieldRef as string
-            ] as IFieldReferenceFn)()
-          );
-        }
         if (isReferencedTable(fieldRef)) {
           fieldsToSelect.push(
             ...Array.from(fieldRef.fields.values()).map(ref =>
               ref.toSelectSql()
             )
           );
+        } else if (typeof fieldRef === 'string') {
+          fieldsToSelect.push(
+            this.refTbl.cols[fieldRef as keyof T]().toSelectSql()
+          );
+        } else {
+          fieldsToSelect.push(fieldRef as SQLAliasedExpression);
         }
-        fieldsToSelect.push(fieldRef as ISQLExpression);
+      }
+    } else {
+      for (const colName in this.refTbl.cols) {
+        fieldsToSelect.push(this.refTbl.cols[colName]().toSelectSql());
       }
     }
-    const selectFields = fieldRefs
-      ? fieldRefs.map(fieldRef => {
-          if (typeof fieldRef === 'string') {
-            return (((this.refTbl as any) as BaseReferenceTable<T>)[
-              fieldRef as string
-            ] as IFieldReferenceFn)();
-          }
-          return fieldRef as IFieldReference;
-        })
-      : this.refTbl.tbl.fields.map(field =>
-          (((this.refTbl as any) as BaseReferenceTable)[
-            field.name as string
-          ] as IFieldReferenceFn)()
-        );
-    selectFields.sort((a, b) => {
+    fieldsToSelect.sort((a, b) => {
       const aAlias = a.alias;
       const bAlias = b.alias;
       if ((aAlias || '') < (bAlias || '')) {
@@ -110,12 +94,8 @@ abstract class BaseTableQuery<T> {
       }
       return 1;
     });
-    const fieldsSql = selectFields
-      .map(field =>
-        field.toSelectSql
-          ? field.toSelectSql().toSql(qryContext)
-          : field.toSql(qryContext)
-      )
+    const fieldsSql = fieldsToSelect
+      .map(field => field.toSql(qryContext))
       .join(',\n');
     return fieldsSql;
   };
@@ -142,7 +122,7 @@ const tableSelectQry = <T>(
   propsOrCb:
     | ITableSelectQryParameters<T>
     | IGenerateParametersCallbackFn<T> = {}
-): ISelectQry => {
+): SelectQuery => {
   const refTbl: ReferencedTable<T> = isDBTable<T>(dbTable)
     ? createReferencedTable(dbTable)
     : (dbTable as ReferencedTable<T>);
@@ -155,11 +135,9 @@ const tableSelectQry = <T>(
     tblQuery.fields(
       props.fields.map(fieldRef => {
         if (typeof fieldRef === 'string') {
-          return ((refTbl as any) as BaseReferenceTable)[
-            fieldRef as string
-          ] as IFieldReferenceFn;
+          return refTbl.cols[fieldRef as keyof T];
         }
-        return fieldRef as ISQLExpression | ReferencedTable<T>;
+        return fieldRef as SQLAliasedExpression | ReferencedTable<T>;
       })
     );
   }
@@ -243,25 +221,26 @@ class BaseWriteTableQuery<T> extends BaseTableQuery<T> {
 
   protected mapUpdateEntryToSql = (
     qryContext: IQueryContext,
-    [fieldName, fieldValue]: [string, ISQLExpression]
+    [fieldName, fieldValue]: [string, SQLExpression]
   ): string => {
-    if (!(fieldName in this.refTbl)) {
+    if (!(fieldName in this.refTbl.cols)) {
       throw new TypeError(`Field ${fieldName} not mapped`);
     }
-    const field = (((this.refTbl as any) as BaseReferenceTable)[
-      fieldName
-    ] as IFieldReferenceFn)();
+    const field = (this.refTbl.cols[
+      fieldName as keyof T
+    ]() as unknown) as TableFieldReference<T>;
     return field.toUpdateFieldSql(fieldValue).toSql(qryContext);
   };
 }
 
-class InsertTableQuery<T> extends BaseWriteTableQuery<T>
-  implements ISQLExpression {
+class InsertTableQuery<T>
+  extends BaseWriteTableQuery<T>
+  implements SQLExpression {
   public toSql = (context?: IQueryContext): string => {
     const qryContext = context || new QueryContext();
     qryContext.addTable(this.refTbl);
     this.addUpdateFieldsIfNeeded(true);
-    const changeFields: Array<[string, ISQLExpression]> = Object.entries(
+    const changeFields: Array<[string, SQLExpression]> = Object.entries(
       transformFieldUpdatesToSql(this.fieldsChanges)
     );
     changeFields.sort((a, b) => {
@@ -272,12 +251,12 @@ class InsertTableQuery<T> extends BaseWriteTableQuery<T>
     const fldList: string[] = [];
     const valList: string[] = [];
     changeFields.forEach(([fieldName, fieldValue]) => {
-      if (!(fieldName in this.refTbl)) {
+      if (!(fieldName in this.refTbl.cols)) {
         throw new TypeError(`Field ${fieldName} not mapped`);
       }
-      const fieldRef = (((this.refTbl as any) as BaseReferenceTable)[
-        fieldName
-      ] as IFieldReferenceFn<T>)() as FieldReference<T>;
+      const fieldRef = (this.refTbl.cols[
+        fieldName as keyof T
+      ]() as unknown) as TableFieldReference<T>;
       fldList.push(fieldRef.field.dbName);
       valList.push(
         fieldRef.writeValueToSQL(fieldValue, true).toSql(qryContext)
@@ -325,9 +304,10 @@ export const insertQuerySql: ITableInsertQrySql = <T>(
   return tblQuery.toSql();
 };
 
-class UpdateTableQuery<T> extends BaseWriteTableQuery<T>
-  implements ISQLExpression {
-  protected where: ISQLExpression;
+class UpdateTableQuery<T>
+  extends BaseWriteTableQuery<T>
+  implements SQLExpression {
+  protected where: SQLExpression;
 
   constructor({
     where,
@@ -340,7 +320,7 @@ class UpdateTableQuery<T> extends BaseWriteTableQuery<T>
   public toSql = (context?: IQueryContext): string => {
     const qryContext = context || new QueryContext();
     this.addUpdateFieldsIfNeeded();
-    const changeFields: Array<[string, ISQLExpression]> = Object.entries(
+    const changeFields: Array<[string, SQLExpression]> = Object.entries(
       transformFieldUpdatesToSql(this.fieldsChanges)
     );
     changeFields.sort((a, b) => {
@@ -392,10 +372,10 @@ interface ITableDeleteQry<Result> {
   ): Result;
 }
 
-export const deleteQuery: ITableDeleteQry<ISQLExpression> = <T>(
+export const deleteQuery: ITableDeleteQry<SQLExpression> = <T>(
   dbTable: IDBTable<T> | ReferencedTable<T>,
   prmsOrCb: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T> = {}
-): ISQLExpression => {
+): SQLExpression => {
   const statement = new Statement();
   const baseTbl = isReferencedTable(dbTable)
     ? (dbTable as ReferencedTable<T>)
@@ -435,30 +415,28 @@ export const updateQuerySql: ITableUpdateQrySql = <T>(
   return tblQuery.toSql();
 };
 
-type MemberFn = (...prms: any[]) => any;
-
 interface RefTableQueries<T> {
   insertQry: (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
-  ) => ISQLExpression;
+  ) => SQLExpression;
   insertQrySql: (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ) => string;
   updateQry: (
     prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
-  ) => ISQLExpression;
+  ) => SQLExpression;
   updateQrySql: (
     prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ) => string;
   selectQry: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
-  ) => ISelectQry;
+  ) => SelectQuery;
   selectQrySql: (
     propsOrCb: ITableSelectQryParameters<T> | IGenerateParametersCallbackFn<T>
   ) => string;
   deleteQry: (
     propsOrCb?: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T>
-  ) => ISQLExpression;
+  ) => SQLExpression;
   deleteQrySql: (
     propsOrCb?: IDeleteQryParameters | IGenerateDeleteParametersCallbackFn<T>
   ) => string;
@@ -466,21 +444,12 @@ interface RefTableQueries<T> {
 
 type QueryReferenceTable<T> = ReferencedTable<T> & RefTableQueries<T>;
 
-class QueryReferenceTableImpl<T> extends BaseReferenceTable<T>
+class QueryReferenceTableImpl<T>
+  extends BaseReferenceTable<T>
   implements RefTableQueries<T> {
-  [fieldname: string]:
-    | IFieldReferenceFn<T>
-    | ICalculatedFieldReferenceFn<T>
-    | IDBTable<T>
-    | string
-    | undefined
-    | IToSqlFn
-    | MemberFn
-    | Map<keyof T, IFieldReference<T>>;
-
   public insertQry = (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
-  ): ISQLExpression => {
+  ): SQLExpression => {
     const changes: IInsertQryParameters<T> =
       typeof prmsOrCb === 'object'
         ? prmsOrCb
@@ -500,7 +469,7 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T>
 
   public updateQry = (
     prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
-  ): ISQLExpression => {
+  ): SQLExpression => {
     const tblRef = (this as any) as ReferencedTable<T>;
     const changes: IUpdateQryParameters<T> =
       typeof prmsOrCb === 'object' ? prmsOrCb : prmsOrCb(tblRef);
@@ -521,7 +490,7 @@ class QueryReferenceTableImpl<T> extends BaseReferenceTable<T>
     propsOrCb:
       | ITableSelectQryParameters<T>
       | IGenerateParametersCallbackFn<T> = {}
-  ): ISelectQry => {
+  ): SelectQuery => {
     const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
     return tableSelectQry(refTbl, propsOrCb);
   };
@@ -569,13 +538,15 @@ export function createQueryReferencedTable<T>(
 }
 
 export function tbl<T>(
-  tblOrDef: IDBTable<T> | ITableDefinition<T>,
+  tblOrDef: ReferencedTable<T> | IDBTable<T> | TableDefinition<T>,
   alias?: string
 ): QueryReferenceTable<T> {
   const tbl = createQueryReferencedTable(
-    isDBTable<T>(tblOrDef)
+    isReferencedTable<T>(tblOrDef)
+      ? tblOrDef.tbl
+      : isDBTable<T>(tblOrDef)
       ? tblOrDef
-      : createDBTbl(tblOrDef as ITableDefinition<T>),
+      : createDBTbl(tblOrDef),
     alias
   );
   return tbl as QueryReferenceTable<T>;
