@@ -878,7 +878,7 @@ class AliasedReferenceSql implements SQLExpression {
     this.resultSet = resultSet;
   }
 
-  public toSql = () => `"${this.resultSet.alias}.${this.aliasedSql.alias}"`;
+  public toSql = () => `"${this.resultSet.alias}"."${this.aliasedSql.alias}"`;
 
   public isSimpleValue = () => true;
 }

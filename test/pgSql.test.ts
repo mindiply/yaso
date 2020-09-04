@@ -208,7 +208,7 @@ from tst join tst as "tst2" on tst.tst_id = tst2.tst_id`;
       (qry, calcTbl) =>
         qry.fields([alias(aggregateWith('array_agg', calcTbl.cols._id), 'ids')])
     ).toString();
-    const expectedSql = `select array_agg("SQ._id") as "ids"
+    const expectedSql = `select array_agg("SQ"."_id") as "ids"
 from (select tst.tst_id as "_id" from tst order by tst.tst_name) as "SQ"`;
     expect(sql).toBe(expectedSql);
   });

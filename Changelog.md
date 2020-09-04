@@ -20,6 +20,11 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.22] - 2020-09-04
+### Fixes
+- Fix in referincing column of subquery table,
+    select "SQ"."ALIAS" instead of erroneous select "SQ.ALIAS"
+
 ## [0.0.21] - 2020-09-03
 ### Fixes
 - Typescript types fixes from 0.0.20
