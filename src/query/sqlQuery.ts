@@ -19,6 +19,7 @@ import {
   IWhereClause,
   JoinType,
   MAX_SINGLE_LINE_STATEMENT_LENGTH,
+  ReferencableTable,
   SelectFieldPrm,
   SelectFields,
   SelectQryTablePrm,
@@ -320,7 +321,16 @@ class FromClause implements IFromClause {
     } else {
       fromLines = this.tables.map(table => fromSqlString(qryContext, table));
     }
-    const tablesSql = fromLines.join(',\n');
+    const fromSqlLength =
+      5 +
+      fromLines.reduce(
+        (cumLength, fromLine, index) =>
+          cumLength + fromLine.length + (index > 0 ? 2 : 0),
+        0
+      );
+    const tablesSql = fromLines.join(
+      fromSqlLength <= MAX_SINGLE_LINE_STATEMENT_LENGTH ? ', ' : ',\n'
+    );
     return `from${
       countNLines(tablesSql) > 1
         ? `\n${indentString(tablesSql, 2)}`
@@ -687,17 +697,76 @@ ${indentString(subQrySql, 2)}
 }
 
 export function selectFrom<T>(
+  from: ReferencableTable<T>,
+  cb?: (qry: SelectQuery<T>, t1: ReferencedTable<T>) => void
+): SelectQuery<T>;
+export function selectFrom<T>(
   from: SelectQryTablePrm<T>,
   cb?: (qry: SelectQuery<T>, t1: ResultSet<T>) => void
+): SelectQuery<T>;
+export function selectFrom<T>(
+  from: [ReferencableTable<T>],
+  cb?: (qry: SelectQuery<T>, t1: ReferencedTable<T>) => void
 ): SelectQuery<T>;
 export function selectFrom<T>(
   from: [SelectQryTablePrm<T>],
   cb?: (qry: SelectQuery<T>, t1: ResultSet<T>) => void
 ): SelectQuery<T>;
 export function selectFrom<T1, T2>(
+  from: [ReferencableTable<T1>, ReferencableTable<T2>],
+  cb?: (
+    qry: SelectQuery<T1 & T2>,
+    t1: ReferencedTable<T1>,
+    t2: ReferencedTable<T2>
+  ) => void
+): SelectQuery<T1 & T2>;
+export function selectFrom<T1, T2>(
+  from: [ReferencableTable<T1>, SelectQryTablePrm<T2>],
+  cb?: (
+    qry: SelectQuery<T1 & T2>,
+    t1: ReferencedTable<T1>,
+    t2: ResultSet<T2>
+  ) => void
+): SelectQuery<T1 & T2>;
+export function selectFrom<T1, T2>(
+  from: [SelectQryTablePrm<T1>, ReferencableTable<T2>],
+  cb?: (
+    qry: SelectQuery<T1 & T2>,
+    t1: ResultSet<T1>,
+    t2: ReferencedTable<T2>
+  ) => void
+): SelectQuery<T1 & T2>;
+export function selectFrom<T1, T2>(
   from: [SelectQryTablePrm<T1>, SelectQryTablePrm<T2>],
   cb?: (qry: SelectQuery<T1 & T2>, t1: ResultSet<T1>, t2: ResultSet<T2>) => void
 ): SelectQuery<T1 & T2>;
+export function selectFrom<T1, T2, T3>(
+  from: [ReferencableTable<T1>, ReferencableTable<T2>, ReferencableTable<T3>],
+  cb?: (
+    qry: SelectQuery<T1 & T2 & T3>,
+    t1: ReferencedTable<T1>,
+    t2: ReferencedTable<T2>,
+    t3: ReferencedTable<T3>
+  ) => void
+): SelectQuery<T1 & T2 & T3>;
+export function selectFrom<T1, T2, T3>(
+  from: [ReferencableTable<T1>, ReferencableTable<T2>, SelectQryTablePrm<T3>],
+  cb?: (
+    qry: SelectQuery<T1 & T2 & T3>,
+    t1: ReferencedTable<T1>,
+    t2: ReferencedTable<T2>,
+    t3: ResultSet<T3>
+  ) => void
+): SelectQuery<T1 & T2 & T3>;
+export function selectFrom<T1, T2, T3>(
+  from: [ReferencableTable<T1>, SelectQryTablePrm<T2>, SelectQryTablePrm<T3>],
+  cb?: (
+    qry: SelectQuery<T1 & T2 & T3>,
+    t1: ReferencedTable<T1>,
+    t2: ResultSet<T2>,
+    t3: ResultSet<T3>
+  ) => void
+): SelectQuery<T1 & T2 & T3>;
 export function selectFrom<T1, T2, T3>(
   from: [SelectQryTablePrm<T1>, SelectQryTablePrm<T2>, SelectQryTablePrm<T3>],
   cb?: (

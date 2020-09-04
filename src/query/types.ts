@@ -269,10 +269,12 @@ export interface IWhereClause extends SQLExpression {
   rootWhereExpression: SQLExpression;
 }
 
-export type SelectQryTablePrm<T> =
+export type ReferencableTable<T> =
+  | ReferencedTable<T>
   | TableDefinition<T>
-  | IDBTable<T>
-  | ResultSet<T>;
+  | IDBTable<T>;
+
+export type SelectQryTablePrm<T> = ReferencableTable<T> | ResultSet<T>;
 
 export interface IQryCallback {
   <T>(qry: SelectQuery<T>, t1: T): void;

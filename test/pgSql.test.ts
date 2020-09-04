@@ -19,7 +19,9 @@ import {
   count,
   aggregateWith,
   concat,
-  binaryOperator
+  binaryOperator,
+  Id,
+  tblCCFields
 } from '../src';
 
 interface ITst {
@@ -218,9 +220,7 @@ from (select tst.tst_id as "_id" from tst order by tst.tst_name) as "SQ"`;
     const expectedSql = `select
   tst.tst_id as "_id",
   tst2.tst_name as "name"
-from
-  tst,
-  tst as "tst2"`;
+from tst, tst as "tst2"`;
     expect(sql).toBe(expectedSql);
   });
 
@@ -378,5 +378,84 @@ limit 10`;
     expect(sql).toBe(`select 'test_' || tst.tst_id as "testId"
 from tst
 where tst.tst_name = 'what' +=+ 'op'`);
+  });
+});
+
+interface PwDigestTbl {
+  _id: Id;
+  tstId: Id;
+  name: string;
+  pwDigest: string;
+  email: string;
+  emailDigest: string;
+  createdAt: Date;
+  updatedAt: Date;
+  cc: number;
+}
+
+const pwDigestTblDef: TableDefinition<PwDigestTbl> = {
+  name: 'PasswordDigestTable',
+  dbName: 'pdt',
+  fields: [
+    {
+      dbName: 'pdt_id',
+      name: '_id'
+    },
+    {
+      dbName: 'pdt_tst_id',
+      name: 'tstId'
+    },
+    {
+      dbName: 'pdt_name',
+      name: 'name'
+    },
+    {
+      dbName: 'pdt_pw_digest',
+      name: 'pwDigest',
+      isPwHash: true
+    },
+    {
+      dbName: 'pdt_email',
+      name: 'email',
+      isEncrypted: true
+    },
+    {
+      dbName: 'pdt_email_digest',
+      name: 'emailDigest',
+      isHash: true
+    },
+    ...tblCCFields('pdt')
+  ]
+};
+
+describe('digest and password fields', () => {
+  test('Check password and email returning email', () => {
+    const sql = selectFrom([tblDef, pwDigestTblDef], (qry, tst, pdt) => {
+      qry
+        .fields([pdt.cols._id, pdt.cols.name, pdt.cols.email, tst.cols.name])
+        .where(
+          and([
+            equals(pdt.cols.tstId, tst.cols._id),
+            equals(
+              pdt.cols.emailDigest,
+              pdt.cols.emailDigest().readValueToSql(prm('email'))
+            ),
+            equals(
+              pdt.cols.pwDigest,
+              pdt.cols.pwDigest().readValueToSql(prm('pw'))
+            )
+          ])
+        );
+    }).toSql();
+    expect(sql).toBe(`select
+  pdt.pdt_id as "_id",
+  case when pdt.pdt_email is not null then pgp_sym_decrypt(decode(pdt.pdt_email, 'hex'), $[encryptionKey]) else null end as "email",
+  pdt.pdt_name as "name",
+  tst.tst_name as "name2"
+from tst, pdt
+where
+  pdt.pdt_tst_id = tst.tst_id
+  and pdt.pdt_email_digest = encode(digest($[email], 'sha256'), 'hex')
+  and pdt.pdt_pw_digest = crypt($[pw], pdt.pdt_pw_digest)`);
   });
 });

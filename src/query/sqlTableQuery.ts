@@ -21,10 +21,7 @@ import {deleteClause, selectFrom, whereClause} from './sqlQuery';
 import {Statement} from './statements';
 import {QueryContext} from './queryContext';
 
-export type SelectFieldRef<T> =
-  | keyof T
-  | SQLExpression
-  | ReferencedTable<T>;
+export type SelectFieldRef<T> = keyof T | SQLExpression | ReferencedTable<T>;
 
 interface ITableQryBaseParameters<T> {
   tbl: ReferencedTable<T>;

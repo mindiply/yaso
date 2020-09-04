@@ -20,6 +20,9 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.21] - 2020-09-03
+### Fixes
+- Typescript types fixes from 0.0.20
 
 ## [0.0.20] - 2020-09-03
 ### Breaking changes
