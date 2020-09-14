@@ -5,13 +5,15 @@ import {
   TableDefinition,
   selectFrom,
   tbl,
-  alias
+  alias,
+  moreThan
 } from '../src';
 
 interface ITst {
   _id: string;
   name: string;
   cc: number;
+  createdAt: Date;
   simpleCF: () => number;
   complexCF: () => number;
   calculation: () => number;
@@ -33,6 +35,11 @@ const tblDef: TableDefinition<ITst> = {
       name: 'cc',
       dbName: 'tst_cc',
       isCC: true
+    },
+    {
+      name: 'createdAt',
+      dbName: 'tst_created_at',
+      isInsertTimestamp: true
     }
   ],
   calculatedFields: [
@@ -72,11 +79,19 @@ describe('SQL Expressions regressions', () => {
     expect(sql).toBe(
       `insert into tst (
   tst_cc,
+  tst_created_at,
   tst_name
 ) values (
   0,
+  now,
   NULL
 )`
+    );
+  });
+
+  test('Date values as strings', () => {
+    expect(moreThan(tst.cols.createdAt, new Date(2020, 0, 1)).toSql()).toBe(
+      `tst.tst_created_at > '2020-01-01T00:00:00.000Z'`
     );
   });
 });

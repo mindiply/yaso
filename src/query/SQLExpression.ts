@@ -139,7 +139,7 @@ class SQLValue implements SQLExpression {
       return `\\x${Buffer.from(value).toString('hex')}`;
     }
     if (value instanceof Date) {
-      return value.toISOString();
+      return `'${value.toISOString()}'`;
     }
     if (typeof value === 'number') {
       return String(value);

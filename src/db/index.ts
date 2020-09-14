@@ -1,8 +1,5 @@
-import {
-  BinaryOperatorExpression,
-  caseWhen,
-  value
-} from '../query/SQLExpression';
+import {rawSql} from '../query/BaseSqlExpressions';
+import {BinaryOperatorExpression, caseWhen} from '../query/SQLExpression';
 import {ISelectStatement} from '../query/statements';
 import {TableFieldReference, SQLExpression} from '../dbTypes';
 import {DataValue} from '../query/types';
@@ -67,7 +64,7 @@ class NoDialect implements IDBDialect {
   hashPwField = (expression: SQLExpression): SQLExpression => expression;
   hashPwFieldVal = (valueExpression: SQLExpression): SQLExpression =>
     valueExpression;
-  now = () => value('now');
+  now = () => rawSql('now');
   namedParameter = (name: string) => name;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
