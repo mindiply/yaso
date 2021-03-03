@@ -213,6 +213,32 @@ from (select tst.tst_id as "_id" from tst order by tst.tst_name) as "SQ"`;
     expect(sql).toBe(expectedSql);
   });
 
+  test('Allow selecting first n rows of a table select in a specific order', () => {
+    const expectedSql = `select
+  "SQ"."_id",
+  "SQ"."cc",
+  "SQ"."name"
+from
+  (
+    select
+      tst.tst_id as "_id",
+      tst.tst_cc as "cc",
+      tst.tst_name as "name"
+    from tst
+    order by tst.tst_name desc
+  ) as "SQ"
+limit 10`;
+    const sql = selectFrom(
+      selectFrom(tbl(tstTbl), (qry, iTst) => {
+        qry.orderBy([{isDesc: true, field: iTst.cols.name}]);
+      }),
+      oQry => {
+        oQry.maxRows(10);
+      }
+    ).toSql();
+    expect(sql).toBe(expectedSql);
+  });
+
   test('should work with cross product', () => {
     const sql = selectFrom([tblDef, tblDef], (qry, tst1, tst2) =>
       qry.fields([tst1.cols._id, tst2.cols.name])

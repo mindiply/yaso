@@ -1,8 +1,10 @@
 import {
   alias,
+  AliasedReferenceSql,
   AliasSqlExpression,
   createAliasedResultColRef,
   isJoin,
+  isResultsetColumn,
   isResultsetColumnRefFn,
   join
 } from './SQLExpression';
@@ -42,6 +44,7 @@ import {
   IQueryContext,
   isIDBTable,
   ReferencedTable,
+  ResultColumn,
   ResultSet,
   SQLAliasedExpression,
   SQLExpression,
@@ -63,6 +66,88 @@ interface ColumnsAliasesState {
   aliases: Set<string>;
   subQueryColumnCounter: number;
   unexplicitAliasesMap: Map<string, number>;
+}
+
+/**
+ * Just holds a resultset column and produces how it should be written
+ * in a select clause
+ */
+class SubTableSelectColumn implements SQLAliasedExpression {
+  private column: ResultColumn<any>;
+
+  constructor(column: ResultColumn<any>) {
+    this.column = column;
+  }
+
+  public isSimpleValue = () => true;
+
+  public toSql = () =>
+    `${this.column.toReferenceSql} as "${this.column.alias}"`;
+
+  public get alias() {
+    return this.column.alias;
+  }
+
+  public set setAlias(_: string) {
+    // no op
+  }
+
+  public get isExplicitAlias() {
+    return this.column.isExplicitAlias;
+  }
+}
+
+/**
+ * When you do a select * from (select col1 as alias1, col2 as alias 2 from tbl) as sq
+ * you want the outer query to reference the results as sq.alias1 as alias1, sq.alias2 as alias2 and so
+ * forth.
+ *
+ * This class allows transforming the inner table reference to the latter
+ *
+ */
+class SubTableColumnAliasExpression implements ResultColumn<any> {
+  private innerColumnReference: SQLAliasedExpression;
+  private subSelectQuery: SelectQuery;
+  private _alias?: string;
+
+  constructor(
+    subSelectQuery: SelectQuery,
+    innerColumnReference: SQLAliasedExpression
+  ) {
+    this.innerColumnReference = innerColumnReference;
+    this.subSelectQuery = subSelectQuery;
+  }
+
+  public isSimpleValue = () => true;
+
+  public get resultSet() {
+    return this.subSelectQuery;
+  }
+
+  public get alias() {
+    return this._alias || this.innerColumnReference.alias;
+  }
+
+  public get isExplicitAlias() {
+    return Boolean(this._alias);
+  }
+
+  public toSql = () => this.toReferenceSql().toSql();
+
+  public toSelectSql = (): SQLAliasedExpression =>
+    new SubTableSelectColumn(this);
+
+  public toReferenceSql = () => {
+    return new AliasedReferenceSql(
+      this.subSelectQuery,
+      this.innerColumnReference
+    );
+  };
+
+  public set setAlias(newAlias: string) {
+    // We don't want to set the alias from the outer query
+    this._alias = newAlias;
+  }
 }
 
 class OverrideSelectAliasExpression implements SQLAliasedExpression {
@@ -185,13 +270,15 @@ class SelectClause implements ISelectClause {
       const aAlias =
         isTableFieldReference(a) ||
         isCalculateFieldReference(a) ||
-        isFieldSelectSqlExpression(a)
+        isFieldSelectSqlExpression(a) ||
+        isResultsetColumn(a)
           ? a.alias
           : 'a';
       const bAlias =
         isTableFieldReference(b) ||
         isCalculateFieldReference(b) ||
-        isFieldSelectSqlExpression(b)
+        isFieldSelectSqlExpression(b) ||
+        isResultsetColumn(b)
           ? b.alias
           : 'b';
       if ((aAlias || '') < (bAlias || '')) {
@@ -537,21 +624,53 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     const columns: SQLExpression[] = [];
     if (this.selectFields) {
       for (const selectField of this.selectFields) {
-        if (isReferencedTable(selectField)) {
+        if (isSelectQuery(selectField)) {
+          for (const colRef in selectField.cols) {
+            columns.push(
+              new SubTableColumnAliasExpression(
+                selectField,
+                selectField.cols[colRef]()
+              )
+            );
+          }
+        } else if (isReferencedTable(selectField)) {
           for (const colRef in selectField.cols) {
             if (isTableFieldReferenceFn(selectField.cols[colRef])) {
               columns.push(selectField.cols[colRef]);
             }
           }
         } else {
-          columns.push(selectField);
+          if (
+            isTableFieldReferenceFn(selectField) &&
+            isSelectQuery(selectField().resultSet)
+          ) {
+            columns.push(
+              new SubTableColumnAliasExpression(
+                selectField().resultSet as SelectQuery<any>,
+                selectField()
+              )
+            );
+          } else {
+            columns.push(selectField);
+          }
         }
       }
     } else {
       for (const resultSet of this.from) {
-        for (const colRef in resultSet.cols) {
-          if (isTableFieldReferenceFn(resultSet.cols[colRef])) {
-            columns.push(resultSet.cols[colRef]);
+        if (isSelectQuery(resultSet)) {
+          for (const colRef in resultSet.cols) {
+            columns.push(
+              new SubTableColumnAliasExpression(
+                resultSet,
+                resultSet.cols[colRef]()
+              )
+            );
+          }
+        } else {
+          for (const colRef in resultSet.cols) {
+            if (isTableFieldReferenceFn(resultSet.cols[colRef])) {
+              columns.push(resultSet.cols[colRef]);
+            }
           }
         }
       }
@@ -690,7 +809,7 @@ function fromSqlString(
     } else {
       return `(
 ${indentString(subQrySql, 2)}
-      ) as "${existingAlias}"`;
+) as "${existingAlias}"`;
     }
   }
   return fromResultSet.toSql(qryContext);
@@ -785,4 +904,8 @@ export function selectFrom(
     qry.executeCallback(cb);
   }
   return qry;
+}
+
+export function isSelectQuery(obj: any): obj is SelectQuery<any> {
+  return Boolean(obj && typeof obj === 'object' && obj instanceof SelectQry);
 }

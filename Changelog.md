@@ -19,6 +19,27 @@ easy to adapt for other dialects
 - Overload insert and update queries so that the dictionary of
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
+  
+## [0.0.24] = 2021-03-03
+
+### Issues
+- Unable to write a query using a sub-table like:
+
+
+    select
+        "SQ"."_id",
+        "SQ"."cc",
+        "SQ"."name"
+    from
+    (
+        select
+            tst.tst_id as "_id",
+            tst.tst_cc as "cc",
+            tst.tst_name as "name"
+        from tst
+        order by tst.tst_name desc
+    ) as "SQ"
+    limit 10
 
 ## [0.0.23] - 2020-09-14
 ### Fixes

@@ -869,7 +869,7 @@ export const castAs = (
   type: string
 ): SQLExpression => new CastExpression(expression, type);
 
-class AliasedReferenceSql implements SQLExpression {
+export class AliasedReferenceSql implements SQLExpression {
   private aliasedSql: SQLAliasedExpression;
   private resultSet: ResultSet<any>;
 
