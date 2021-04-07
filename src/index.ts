@@ -36,7 +36,8 @@ export {
   sqlNull,
   castAs,
   exists,
-  join
+  join,
+  functionCall
 } from './query/SQLExpression';
 
 export {
@@ -46,10 +47,8 @@ export {
   deleteQuerySql,
   tbl
 } from './query/sqlTableQuery';
-export {selectFrom} from './query/sqlQuery';
+export {selectFrom, orderBy} from './query/sqlQuery';
 export {usePg} from './db/pgSQL';
 export {tblCCFields} from './query/utils';
-export {ITbl, IId, Id} from './query/types';
-export {SQLExpression} from './dbTypes';
+export {ITbl, IId, Id, TableFieldUpdates} from './query/types';
 export {rawSql} from './query/BaseSqlExpressions';
-export {orderBy} from './query/sqlQuery';

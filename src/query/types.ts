@@ -101,6 +101,11 @@ export interface ISqlListExpression extends SQLExpression {
   listItems: SQLExpression[];
 }
 
+export interface SQLFunctionCall extends SQLExpression {
+  readonly functionName: string;
+  readonly parameters: SQLExpression[];
+}
+
 export interface ISQLOrderByField<T = any> {
   field: SQLExpression | ResultColumn<T> | ColumnReferenceFn<T>;
   isDesc?: boolean;

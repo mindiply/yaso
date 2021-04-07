@@ -28,6 +28,7 @@ import {
   MathBinaryOperator,
   MAX_SINGLE_LINE_STATEMENT_LENGTH,
   NullComparatorType,
+  SQLFunctionCall,
   TableFieldUpdates
 } from './types';
 import {
@@ -427,20 +428,28 @@ class SQLListExpression implements ISqlListExpression {
       return itemSql;
     });
     return parenthesizeSql(
-      items.join(totChars > MAX_SINGLE_LINE_STATEMENT_LENGTH ? '\n' : ', ')
+      items.join(totChars > MAX_SINGLE_LINE_STATEMENT_LENGTH ? ',\n' : ', ')
     );
   };
 }
 
-export const list = (
+export function list(
   items: Array<SQLExpression | DataValue>
-): ISqlListExpression => {
+): ISqlListExpression;
+export function list(
+  ...items: Array<SQLExpression | DataValue>
+): ISqlListExpression;
+export function list(
+  first: Array<SQLExpression | DataValue> | SQLExpression | DataValue,
+  ...other: Array<SQLExpression | DataValue>
+): ISqlListExpression {
+  const items = Array.isArray(first) ? first : [first, ...other];
   return new SQLListExpression(
     items.map(item =>
       isSqlExpression(item) ? item : new SQLValue(item as DataValue)
     )
   );
-};
+}
 
 class InNotInStatement implements IInNotInStatement {
   public type: InNotInOperator;
@@ -932,3 +941,52 @@ export const createAliasedResultColRef = <ObjShape>(
   colRef.isSimpleValue = () => col.isSimpleValue();
   return colRef;
 };
+
+class SQLFunctionCallImpl implements SQLFunctionCall {
+  public readonly functionName: string;
+  public readonly parameters: SQLExpression[];
+
+  public constructor(functionName: string, parameters: SQLExpression[] = []) {
+    this.functionName = functionName;
+    this.parameters = parameters;
+  }
+
+  public toSql = (qryContext: IQueryContext = new QueryContext()) => {
+    let totChars = this.functionName.length + 2;
+    const parameters = this.parameters.map((item, index) => {
+      const itemSql = item.toSql(qryContext);
+      totChars += itemSql.length + (index > 0 ? 1 : 0);
+      return itemSql;
+    });
+    return `${this.functionName}${parenthesizeSql(
+      parameters.join(
+        totChars > MAX_SINGLE_LINE_STATEMENT_LENGTH ? ',\n' : ', '
+      )
+    )}`;
+    `${this.functionName}${list(this.parameters).toSql(qryContext)}`;
+  };
+
+  public isSimpleValue = () => true;
+}
+
+export function functionCall(
+  functionName: string,
+  ...prms: Array<SQLExpression | DataValue>
+): SQLFunctionCall;
+export function functionCall(
+  functionName: string,
+  prms: Array<SQLExpression | DataValue>
+): SQLFunctionCall;
+export function functionCall(
+  functionName: string,
+  first: SQLExpression | DataValue | Array<SQLExpression | DataValue> = [],
+  ...other: Array<SQLExpression | DataValue>
+): SQLFunctionCall {
+  const parameters = Array.isArray(first) ? first : [first, ...other];
+  return new SQLFunctionCallImpl(
+    functionName,
+    parameters.map(parameter =>
+      isSqlExpression(parameter) ? parameter : value(parameter)
+    )
+  );
+}

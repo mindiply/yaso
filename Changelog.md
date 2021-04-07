@@ -20,7 +20,38 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
   
-## [0.0.24] = 2021-03-03
+## [0.0.25] 2021-04-07
+
+### Added
+- Added sql expression **functionCall** representing a function
+call.
+
+      functionCall('longTestFunctionNameToCauseWrap', [
+          1,
+          'test',
+          'longFunctionParamNameToCauseWrap',
+          'longFunctionParamNameToCauseWrap2',
+          'longFunctionParamNameToCauseWrap3'
+      ]).toSql()  
+    
+    that produces:
+
+      longTestFunctionNameToCauseWrap(
+          1,
+          'test',
+          'longFunctionParamNameToCauseWrap',
+          'longFunctionParamNameToCauseWrap2',
+          'longFunctionParamNameToCauseWrap3'
+      )
+
+### Changes
+- list() now accepts either an array or a list of
+parameters.
+  
+### Fixes
+- list() did not wrap correctly, omitting the comma between elements 
+
+## [0.0.24] 2021-03-03
 
 ### Issues
 - Unable to write a query using a sub-table like:

@@ -6,7 +6,9 @@ import {
   selectFrom,
   tbl,
   alias,
-  moreThan
+  moreThan,
+  list,
+  functionCall
 } from '../src';
 
 interface ITst {
@@ -72,6 +74,63 @@ const tblDef: TableDefinition<ITst> = {
 };
 
 const tst = tbl(tblDef);
+
+describe('list()', () => {
+  test('Short simple values', () => {
+    expect(list([1, 2, 3, 4]).toSql()).toBe('(1, 2, 3, 4)');
+    expect(list(1, 2, 3, 4).toSql()).toBe('(1, 2, 3, 4)');
+  });
+
+  test('Long simple values', () => {
+    expect(
+      list(
+        tst.cols._id().toReferenceSql(),
+        tst.cols.cc().toReferenceSql(),
+        tst.cols.name().toReferenceSql(),
+        tst.cols.createdAt().toReferenceSql(),
+        'Additional text to pad to go past 72 characters you know we need it yeah?'
+      ).toSql()
+    ).toBe(`(
+  tst.tst_id,
+  tst.tst_cc,
+  tst.tst_name,
+  tst.tst_created_at,
+  'Additional text to pad to go past 72 characters you know we need it yeah?'
+)`);
+  });
+});
+
+describe('functionCall', () => {
+  test('Short no params call', () => {
+    expect(functionCall('tstFn').toSql()).toBe('tstFn()');
+  });
+
+  test('Short 1 param call', () => {
+    expect(functionCall('tstFn', 1).toSql()).toBe('tstFn(1)');
+  });
+
+  test('Short 2 params call', () => {
+    expect(functionCall('tstFn', 1, 'test').toSql()).toBe(`tstFn(1, 'test')`);
+  });
+
+  test('Long 3 params call', () => {
+    expect(
+      functionCall('longTestFunctionNameToCauseWrap', [
+        1,
+        'test',
+        'longFunctionParamNameToCauseWrap',
+        'longFunctionParamNameToCauseWrap2',
+        'longFunctionParamNameToCauseWrap3'
+      ]).toSql()
+    ).toBe(`longTestFunctionNameToCauseWrap(
+  1,
+  'test',
+  'longFunctionParamNameToCauseWrap',
+  'longFunctionParamNameToCauseWrap2',
+  'longFunctionParamNameToCauseWrap3'
+)`);
+  });
+});
 
 describe('SQL Expressions regressions', () => {
   test('Null value on insert', () => {
