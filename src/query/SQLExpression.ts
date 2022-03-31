@@ -9,6 +9,7 @@ import indentString from 'indent-string';
 import {
   AggregateOperator,
   BinaryComparator,
+  ChangesNamedParameters,
   DataValue,
   IInNotInStatement,
   IJoin,
@@ -187,8 +188,21 @@ export function prm(name: string): NamedParameter {
   return new NamedParameter(name);
 }
 
+export function changesNamedParameters<T>(
+  changes: T
+): ChangesNamedParameters<T> {
+  const namedParams = {} as ChangesNamedParameters<T>;
+  if (changes && typeof changes === 'object') {
+    for (const fieldName in changes) {
+      namedParams[fieldName] = prm(fieldName);
+    }
+  }
+  return namedParams;
+}
+
 export class BinaryOperatorExpression<OperatorType extends string = string>
-  implements SQLExpression {
+  implements SQLExpression
+{
   public left: SQLExpression;
   public operator: OperatorType;
   public right: SQLExpression;
@@ -693,7 +707,7 @@ export function join(
     } else {
       return new Join(
         p1 as IJoin,
-        (p2 as any) as ColumnReferenceFn<any>,
+        p2 as any as ColumnReferenceFn<any>,
         p3 as IJoin,
         p4 as ColumnReferenceFn<any>,
         p5 as JoinType

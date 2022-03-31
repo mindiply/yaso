@@ -261,6 +261,10 @@ export type TableFieldUpdates<T> = {
   [P in keyof T]?: DataValue | SQLExpression;
 };
 
+export type ChangesNamedParameters<T> = {
+  [P in keyof T]: INamedParameter;
+};
+
 export interface ISelectClause extends SQLExpression {
   readonly selectFields: SQLExpression[];
 }

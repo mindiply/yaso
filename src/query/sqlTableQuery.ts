@@ -223,16 +223,17 @@ class BaseWriteTableQuery<T> extends BaseTableQuery<T> {
     if (!(fieldName in this.refTbl.cols)) {
       throw new TypeError(`Field ${fieldName} not mapped`);
     }
-    const field = (this.refTbl.cols[
+    const field = this.refTbl.cols[
       fieldName as keyof T
-    ]() as unknown) as TableFieldReference<T>;
+    ]() as unknown as TableFieldReference<T>;
     return field.toUpdateFieldSql(fieldValue).toSql(qryContext);
   };
 }
 
 class InsertTableQuery<T>
   extends BaseWriteTableQuery<T>
-  implements SQLExpression {
+  implements SQLExpression
+{
   public toSql = (context?: IQueryContext): string => {
     const qryContext = context || new QueryContext();
     qryContext.addTable(this.refTbl);
@@ -251,9 +252,9 @@ class InsertTableQuery<T>
       if (!(fieldName in this.refTbl.cols)) {
         throw new TypeError(`Field ${fieldName} not mapped`);
       }
-      const fieldRef = (this.refTbl.cols[
+      const fieldRef = this.refTbl.cols[
         fieldName as keyof T
-      ]() as unknown) as TableFieldReference<T>;
+      ]() as unknown as TableFieldReference<T>;
       fldList.push(fieldRef.field.dbName);
       valList.push(
         fieldRef.writeValueToSQL(fieldValue, true).toSql(qryContext)
@@ -303,7 +304,8 @@ export const insertQuerySql: ITableInsertQrySql = <T>(
 
 class UpdateTableQuery<T>
   extends BaseWriteTableQuery<T>
-  implements SQLExpression {
+  implements SQLExpression
+{
   protected where: SQLExpression;
 
   constructor({
@@ -443,16 +445,17 @@ type QueryReferenceTable<T> = ReferencedTable<T> & RefTableQueries<T>;
 
 class QueryReferenceTableImpl<T>
   extends BaseReferenceTable<T>
-  implements RefTableQueries<T> {
+  implements RefTableQueries<T>
+{
   public insertQry = (
     prmsOrCb: IInsertQryParameters<T> | IGenerateInsertParametersCallbackFn<T>
   ): SQLExpression => {
     const changes: IInsertQryParameters<T> =
       typeof prmsOrCb === 'object'
         ? prmsOrCb
-        : prmsOrCb((this as any) as ReferencedTable<T>);
+        : prmsOrCb(this as any as ReferencedTable<T>);
     return new InsertTableQuery({
-      tbl: (this as any) as ReferencedTable<T>,
+      tbl: this as any as ReferencedTable<T>,
       ...changes
     });
   };
@@ -467,7 +470,7 @@ class QueryReferenceTableImpl<T>
   public updateQry = (
     prmsOrCb: IUpdateQryParameters<T> | IGenerateUpdateParametersCallbackFn<T>
   ): SQLExpression => {
-    const tblRef = (this as any) as ReferencedTable<T>;
+    const tblRef = this as any as ReferencedTable<T>;
     const changes: IUpdateQryParameters<T> =
       typeof prmsOrCb === 'object' ? prmsOrCb : prmsOrCb(tblRef);
     return new UpdateTableQuery({
@@ -488,7 +491,7 @@ class QueryReferenceTableImpl<T>
       | ITableSelectQryParameters<T>
       | IGenerateParametersCallbackFn<T> = {}
   ): SelectQuery => {
-    const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
+    const refTbl: ReferencedTable<T> = this as any as ReferencedTable<T>;
     return tableSelectQry(refTbl, propsOrCb);
   };
 
@@ -506,7 +509,7 @@ class QueryReferenceTableImpl<T>
       | IDeleteQryParameters
       | IGenerateDeleteParametersCallbackFn<T> = {}
   ) => {
-    const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
+    const refTbl: ReferencedTable<T> = this as any as ReferencedTable<T>;
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     return deleteQuery(refTbl, propsOrCb);
@@ -517,7 +520,7 @@ class QueryReferenceTableImpl<T>
       | IDeleteQryParameters
       | IGenerateDeleteParametersCallbackFn<T> = {}
   ) => {
-    const refTbl: ReferencedTable<T> = (this as any) as ReferencedTable<T>;
+    const refTbl: ReferencedTable<T> = this as any as ReferencedTable<T>;
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     return deleteQuerySql(refTbl, propsOrCb);
@@ -528,10 +531,10 @@ export function createQueryReferencedTable<T>(
   dbTable: IDBTable<T>,
   alias?: string
 ): QueryReferenceTable<T> {
-  return (new QueryReferenceTableImpl(
+  return new QueryReferenceTableImpl(
     dbTable,
     alias
-  ) as any) as QueryReferenceTable<T>;
+  ) as any as QueryReferenceTable<T>;
 }
 
 export function tbl<T>(

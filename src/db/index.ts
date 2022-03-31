@@ -65,7 +65,7 @@ class NoDialect implements IDBDialect {
   hashPwFieldVal = (valueExpression: SQLExpression): SQLExpression =>
     valueExpression;
   now = () => rawSql('now');
-  namedParameter = (name: string) => name;
+  namedParameter = (name: string) => `:${name}`;
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement =>
     selectStatement;
   concat = (v1: SQLExpression | DataValue, v2: SQLExpression | DataValue) =>

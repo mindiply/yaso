@@ -8,7 +8,9 @@ import {
   alias,
   moreThan,
   list,
-  functionCall
+  functionCall,
+  prm,
+  changesNamedParameters
 } from '../src';
 
 interface ITst {
@@ -19,6 +21,10 @@ interface ITst {
   simpleCF: () => number;
   complexCF: () => number;
   calculation: () => number;
+}
+
+interface ITstDescr extends ITst {
+  description: string;
 }
 
 const tblDef: TableDefinition<ITst> = {
@@ -73,6 +79,18 @@ const tblDef: TableDefinition<ITst> = {
   ]
 };
 
+// @ts-expect-error unable to inherit extended interface
+const tblDecrDef: TableDefinition<ITstDescr> = {
+  ...tblDef,
+  fields: [
+    ...tblDef.fields,
+    {
+      name: 'description',
+      dbName: 'tst_descr'
+    }
+  ]
+};
+
 const tst = tbl(tblDef);
 
 describe('list()', () => {
@@ -98,6 +116,22 @@ describe('list()', () => {
   'Additional text to pad to go past 72 characters you know we need it yeah?'
 )`);
   });
+});
+
+describe('null values', () => {
+  const updateQrySql = tbl(tst).updateQrySql(tst => ({
+    fields: {
+      name: null
+    },
+    where: equals(tst.cols._id, prm('tstId'))
+  }));
+  expect(updateQrySql).toBe(
+    `update tst
+set
+  tst_cc = tst_cc + 1,
+  tst_name = NULL
+where tst.tst_id = :tstId`
+  );
 });
 
 describe('functionCall', () => {
@@ -151,6 +185,32 @@ describe('SQL Expressions regressions', () => {
   test('Date values as strings', () => {
     expect(moreThan(tst.cols.createdAt, new Date(2020, 0, 1)).toSql()).toBe(
       `tst.tst_created_at > '2020-01-01T00:00:00.000Z'`
+    );
+  });
+});
+
+describe('SQL insert and update named paramters', () => {
+  test('Insert', () => {
+    const changes: Partial<ITstDescr> = {
+      name: 'newname',
+      description: 'newDescr'
+    };
+    const sql = tbl(tblDecrDef).insertQrySql(tst => ({
+      fields: changesNamedParameters(changes),
+      where: equals(tst.cols._id, prm('_id'))
+    }));
+    expect(sql).toBe(
+      `insert into tst (
+  tst_cc,
+  tst_created_at,
+  tst_descr,
+  tst_name
+) values (
+  0,
+  now,
+  :description,
+  :name
+)`
     );
   });
 });

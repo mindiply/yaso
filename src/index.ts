@@ -4,6 +4,7 @@ export * from './dbModel';
 export {
   aggregateWith,
   prm,
+  changesNamedParameters,
   or,
   equals,
   and,

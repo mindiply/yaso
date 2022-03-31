@@ -590,9 +590,8 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
         // it.
         column(columnAlias);
       }
-      selectColumns[
-        columnAlias as keyof ObjShape
-      ] = column as ColumnReferenceFn<ObjShape>;
+      selectColumns[columnAlias as keyof ObjShape] =
+        column as ColumnReferenceFn<ObjShape>;
     } else {
       let ref: ColumnReferenceFn<ObjShape>;
       if (isSqlAliasedExpression(column)) {
@@ -724,7 +723,7 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     this.selectFields = flds.map(fld =>
       typeof fld === 'function' ? fld() : fld
     );
-    return (this as unknown) as SelectQuery<ObjShape>;
+    return this as unknown as SelectQuery<ObjShape>;
   };
 
   public orderBy: IOrderByFn<SelectQuery<ObjShape>> = (

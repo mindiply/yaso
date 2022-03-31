@@ -19,6 +19,14 @@ easy to adapt for other dialects
 - Overload insert and update queries so that the dictionary of
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
+
+## [0.0.26] 2022-03-31
+
+### Added
+- Added *changesNamedParameters* function that is useful when you have
+  an object with update or insert field/value pairs and want to get
+  an object with the same field names and as values named parameters
+  sql expressions with the same name as the field name.
   
 ## [0.0.25] 2021-04-07
 

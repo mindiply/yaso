@@ -217,7 +217,8 @@ export function createFieldReferenceFn<T>(
 }
 
 class CalculateFieldReference<ObjShape>
-  implements CalculatedFieldReference<ObjShape> {
+  implements CalculatedFieldReference<ObjShape>
+{
   public readonly field: TableCalculateFieldDefinition<ObjShape>;
   public readonly qryTbl: ReferencedTable<ObjShape>;
   public readonly resultSet: ResultSet<ObjShape>;
@@ -304,7 +305,8 @@ function addColumnsRefs<ObjShapeIn, ObjShapeAdded>(
 */
 
 export class BaseReferenceTable<ObjShape = any>
-  implements ReferencedTable<ObjShape> {
+  implements ReferencedTable<ObjShape>
+{
   public tbl: IDBTable<ObjShape>;
   private _alias?: string;
   private _fieldsReferences: Map<keyof ObjShape, TableFieldReference<ObjShape>>;
@@ -328,7 +330,7 @@ export class BaseReferenceTable<ObjShape = any>
       this._cols[field.name] = fieldRefFn;
       this._fieldsReferences.set(
         field.name,
-        (fieldRefFn() as unknown) as TableFieldReference<ObjShape>
+        fieldRefFn() as unknown as TableFieldReference<ObjShape>
       );
     });
 
@@ -384,11 +386,11 @@ export class BaseReferenceTable<ObjShape = any>
   ): string => {
     const queryContext = qryContext || new QueryContext();
     let contextAlias = queryContext.tableRefAlias(
-      (this as any) as ReferencedTable<ObjShape>
+      this as any as ReferencedTable<ObjShape>
     );
     if (!contextAlias) {
       contextAlias = queryContext.addTable(
-        (this as any) as ReferencedTable<ObjShape>
+        this as any as ReferencedTable<ObjShape>
       );
     }
     return contextAlias;
@@ -399,7 +401,7 @@ export function createReferencedTable<T>(
   dbTable: IDBTable<T>,
   alias?: string
 ): ReferencedTable<T> {
-  return (new BaseReferenceTable(dbTable, alias) as any) as ReferencedTable<T>;
+  return new BaseReferenceTable(dbTable, alias) as any as ReferencedTable<T>;
 }
 
 export function isReferencedTable<T = any>(
