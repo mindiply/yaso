@@ -196,8 +196,7 @@ describe('SQL insert and update named paramters', () => {
       description: 'newDescr'
     };
     const sql = tbl(tblDecrDef).insertQrySql(tst => ({
-      fields: changesNamedParameters(changes),
-      where: equals(tst.cols._id, prm('_id'))
+      fields: changesNamedParameters(changes)
     }));
     expect(sql).toBe(
       `insert into tst (
@@ -211,6 +210,25 @@ describe('SQL insert and update named paramters', () => {
   :description,
   :name
 )`
+    );
+  });
+
+  test('Update', () => {
+    const changes: Partial<ITstDescr> = {
+      name: 'newname',
+      description: 'newDescr'
+    };
+    const sql = tbl(tblDecrDef).updateQrySql(tst => ({
+      fields: changesNamedParameters(changes),
+      where: equals(tst.cols._id, prm('_id'))
+    }));
+    expect(sql).toBe(
+      `update tst
+set
+  tst_cc = tst_cc + 1,
+  tst_descr = :description,
+  tst_name = :name
+where tst.tst_id = :_id`
     );
   });
 });
