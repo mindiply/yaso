@@ -20,6 +20,24 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.27] - 2023-09-12
+
+### Added
+- You can now make a select distinct, using isSelectDistinct tableQueryParameter
+  or by using selectDistinct() on a SelectQuery.
+
+      const sql = tableSelectSql(qryTbl, {
+        isSelectDistinct: true,
+        fields: ['id']
+      });
+
+      const sql = selectFrom(tstTbl, (qry, tst) => {
+          qry
+            .fields([tst.cols._id, tst.cols.complexCF])
+            .selectDistinct(true)
+            .where(equals(tst.cols.name, prm('name')));
+      }).toSql();
+
 ## [0.0.26] 2022-03-31
 
 ### Added

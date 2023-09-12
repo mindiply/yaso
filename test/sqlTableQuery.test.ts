@@ -265,6 +265,15 @@ describe('Test table select queries', () => {
     expect(sql).toBe(expectedSql);
   });
 
+  test('Simple distinct single field, no condition query', () => {
+    const expectedSql = `select distinct tst.tst_id as "id" from tst`;
+    const sql = tableSelectSql(qryTbl, {
+      isSelectDistinct: true,
+      fields: ['id']
+    });
+    expect(sql).toBe(expectedSql);
+  });
+
   test('Two fields, one simple condition', () => {
     const expectedSql = `select
   tst.tst_name as "name",
@@ -272,6 +281,20 @@ describe('Test table select queries', () => {
 from tst
 where tst.tst_id = 'idtest'`;
     const sql = tableSelectSql(qryTbl, tst => ({
+      fields: ['name', 'when'],
+      where: equals(tst.cols.id, 'idtest')
+    }));
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Two distinct fields, one simple condition', () => {
+    const expectedSql = `select distinct
+  tst.tst_name as "name",
+  tst.tst_created_at as "when"
+from tst
+where tst.tst_id = 'idtest'`;
+    const sql = tableSelectSql(qryTbl, tst => ({
+      isSelectDistinct: true,
       fields: ['name', 'when'],
       where: equals(tst.cols.id, 'idtest')
     }));
@@ -318,6 +341,35 @@ where
   )`;
     const sql = qryTbl
       .selectQry(tst => ({
+        where: equals(
+          tst.cols.id,
+          selectFrom(getDbTableByDbName<ITest>('tst'), (qry, tst2) => {
+            qry
+              .fields(max(tst2.cols.id))
+              .where(equals(tst2.cols.name, prm('name')));
+          })
+        )
+      }))
+      .toSql();
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Subquery distinct on same table and auto alias', () => {
+    const expectedSql = `select distinct
+  tst.tst_change_count as "cc",
+  tst.tst_id as "id",
+  tst.tst_name as "name",
+  tst.tst_created_at as "when"
+from tst
+where
+  tst.tst_id = (
+    select max(tst2.tst_id) as "SQC1"
+    from tst as "tst2"
+    where tst2.tst_name = $[name]
+  )`;
+    const sql = qryTbl
+      .selectQry(tst => ({
+        isSelectDistinct: true,
         where: equals(
           tst.cols.id,
           selectFrom(getDbTableByDbName<ITest>('tst'), (qry, tst2) => {

@@ -117,11 +117,31 @@ from tst`;
     expect(sql).toBe(expectedSql);
   });
 
+  test('should be a select distinct *', () => {
+    const sql = selectFrom(tstTbl).selectDistinct(true).toString();
+    const expectedSql = `select distinct
+  tst.tst_id as "_id",
+  tst.tst_cc as "cc",
+  tst.tst_name as "name"
+from tst`;
+    expect(sql).toBe(expectedSql);
+  });
+
   test('custom aggregate operator', () => {
     const sql = selectFrom(tstTbl, (qry, tst) => {
       qry.fields(alias(aggregateWith('array_agg', tst.cols._id), 'ids'));
     }).toString();
     const expectedSql = `select array_agg(tst.tst_id) as "ids" from tst`;
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('custom distinct aggregate operator', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry
+        .fields(alias(aggregateWith('array_agg', tst.cols._id), 'ids'))
+        .selectDistinct(true);
+    }).toString();
+    const expectedSql = `select distinct array_agg(tst.tst_id) as "ids" from tst`;
     expect(sql).toBe(expectedSql);
   });
 
@@ -160,6 +180,24 @@ where tst.tst_name = $[name]`);
         .where(equals(tst.cols.name, prm('name')));
     }).toSql();
     expect(sql).toBe(`select
+  tst.tst_id as "_id",
+  (
+    select count(tst2.tst_id) as "SQC1"
+    from tst as "tst2"
+    where tst2.tst_name = tst.tst_name
+  ) as "complexCF"
+from tst
+where tst.tst_name = $[name]`);
+  });
+
+  test('should select distinct  id and complex calculated field', () => {
+    const sql = selectFrom(tstTbl, (qry, tst) => {
+      qry
+        .fields([tst.cols._id, tst.cols.complexCF])
+        .selectDistinct(true)
+        .where(equals(tst.cols.name, prm('name')));
+    }).toSql();
+    expect(sql).toBe(`select distinct
   tst.tst_id as "_id",
   (
     select count(tst2.tst_id) as "SQC1"

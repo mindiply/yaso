@@ -60,6 +60,7 @@ import {createDBTbl} from '../dbModel';
 export interface ISelectOptions {
   maxRows?: number;
   alias?: string;
+  isSelectDistinct?: boolean;
 }
 
 interface ColumnsAliasesState {
@@ -235,9 +236,11 @@ function processSelectColumn(
  */
 class SelectClause implements ISelectClause {
   public _selectFields: SQLExpression[];
+  readonly _isDistinct: boolean;
 
-  constructor(columns: SQLExpression[] = []) {
+  constructor(columns: SQLExpression[] = [], isDistinct = false) {
     this._selectFields = [];
+    this._isDistinct = isDistinct;
     const aliases: Set<string> = new Set();
     for (const column of columns) {
       if (isSqlAliasedExpression(column) && column.isExplicitAlias) {
@@ -261,6 +264,10 @@ class SelectClause implements ISelectClause {
 
   public get selectFields() {
     return this._selectFields;
+  }
+
+  public get isDistinct() {
+    return this._isDistinct;
   }
 
   public isSimpleValue = () => true;
@@ -296,15 +303,16 @@ class SelectClause implements ISelectClause {
           : field.toSql(qryContext)
       )
       .join(',\n');
-    return `select${countNLines(fieldsSql) > 1 ? '\n' : ''}${indentString(
-      fieldsSql,
-      countNLines(fieldsSql) > 1 ? 2 : 1
-    )}`;
+    return `select${this._isDistinct ? ' distinct' : ''}${
+      countNLines(fieldsSql) > 1 ? '\n' : ''
+    }${indentString(fieldsSql, countNLines(fieldsSql) > 1 ? 2 : 1)}`;
   };
 }
 
-export const selectClause = (fields?: SQLExpression[]): ISelectClause =>
-  new SelectClause(fields);
+export const selectClause = (
+  fields: SQLExpression[] = [],
+  isSelectDistinct = false
+): ISelectClause => new SelectClause(fields, isSelectDistinct);
 
 export function isSelectClause(obj: any): obj is SQLExpression {
   return obj && obj instanceof SelectClause ? true : false;
@@ -486,14 +494,16 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
   public _maxRows?: number;
   private _alias?: string;
   private columsRefs: null | ColumnsRefs<ObjShape>;
+  private _isSelectDistinct: boolean;
 
   constructor(
     tables: SelectQryTablePrm<any> | Array<SelectQryTablePrm<any>>,
-    {maxRows, alias}: ISelectOptions = {}
+    {maxRows, alias, isSelectDistinct = false}: ISelectOptions = {}
   ) {
     if (!tables) {
       throw new Error('Expected at least one table');
     }
+    this._isSelectDistinct = isSelectDistinct;
     this._alias = alias;
     this.from = (Array.isArray(tables) ? tables : [tables]).map(table =>
       isReferencedTable(table)
@@ -726,6 +736,11 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     return this as unknown as SelectQuery<ObjShape>;
   };
 
+  public selectDistinct = (isSelectDistinct: boolean) => {
+    this._isSelectDistinct = isSelectDistinct;
+    return this;
+  };
+
   public orderBy: IOrderByFn<SelectQuery<ObjShape>> = (
     fields: ISQLOrderByField | ISQLOrderByField[]
   ): SelectQuery<ObjShape> => {
@@ -763,7 +778,10 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     for (const colAlias in this.cols) {
       fieldInSelect.push(this.cols[colAlias]().toSelectSql());
     }
-    selectStatement.addClause('select', selectClause(fieldInSelect));
+    selectStatement.addClause(
+      'select',
+      selectClause(fieldInSelect, this._isSelectDistinct)
+    );
 
     selectStatement.addClause(
       'from',

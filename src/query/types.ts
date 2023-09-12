@@ -266,6 +266,7 @@ export type ChangesNamedParameters<T> = {
 };
 
 export interface ISelectClause extends SQLExpression {
+  readonly isDistinct: boolean;
   readonly selectFields: SQLExpression[];
 }
 
@@ -467,6 +468,14 @@ export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
    * Returns the query object itself to allow chaining of conditions
    */
   maxRows: (maxRows: number) => SelectQuery<ObjShape>;
+
+  /**
+   * If the parameter is true, makes the selct statement a select distinct one.
+   *
+   * @param {number} boolean
+   * @returns {SelectQuery<ObjShape>}
+   */
+  selectDistinct: (isSelectDistinct: boolean) => SelectQuery<ObjShape>;
 }
 
 export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;

@@ -29,6 +29,7 @@ interface ITableQryBaseParameters<T> {
 
 interface ITableSelectQryParameters<T> {
   fields?: SelectFieldRef<T>[];
+  isSelectDistinct?: boolean;
   where?: SQLExpression;
   orderByFields?: ISQLOrderByField<T>[];
   maxRows?: number;
@@ -128,6 +129,8 @@ const tableSelectQry = <T>(
   if (props.maxRows && props.maxRows > 0) {
     tblQuery.maxRows(props.maxRows);
   }
+  tblQuery.selectDistinct(Boolean(props.isSelectDistinct));
+
   if (props.fields) {
     tblQuery.fields(
       props.fields.map(fieldRef => {
