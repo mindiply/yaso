@@ -20,6 +20,12 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.28] - 2024-03-27
+
+### Fixes
+- Using non column references in subqueries using the fields
+  method did not appear in the output sql
+
 ## [0.0.27] - 2023-09-12
 
 ### Added

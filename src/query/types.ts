@@ -287,22 +287,27 @@ export type ReferencableTable<T> =
 export type SelectQryTablePrm<T> = ReferencableTable<T> | ResultSet<T>;
 
 export interface IQryCallback {
-  <T>(qry: SelectQuery<T>, t1: T): void;
+  <T, O>(qry: SelectQuery<T, O>, t1: T): void;
 
-  <T1, T2>(qry: SelectQuery<T1 & T2>, t1: T1, t2: T2): void;
+  <T1, T2, O>(qry: SelectQuery<T1 & T2, O>, t1: T1, t2: T2): void;
 
-  <T1, T2, T3>(qry: SelectQuery<T1 & T2 & T3>, t1: T1, t2: T2, t3: T3): void;
+  <T1, T2, T3, O>(
+    qry: SelectQuery<T1 & T2 & T3, O>,
+    t1: T1,
+    t2: T2,
+    t3: T3
+  ): void;
 
-  <T1, T2, T3, T4>(
-    qry: SelectQuery<T1 & T2 & T3 & T4>,
+  <T1, T2, T3, T4, O>(
+    qry: SelectQuery<T1 & T2 & T3 & T4, O>,
     t1: T1,
     t2: T2,
     t3: T3,
     t4: T4
   ): void;
 
-  <T1, T2, T3, T4, T5>(
-    qry: SelectQuery<T1 & T2 & T3 & T4>,
+  <T1, T2, T3, T4, T5, O>(
+    qry: SelectQuery<T1 & T2 & T3 & T4 & T5, O>,
     t1: T1,
     t2: T2,
     t3: T3,
@@ -415,7 +420,10 @@ export type ColumnsNames<ObjShape> = {
  *
  * The union operator is at this stage not supported.
  */
-export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
+export interface SelectQuery<
+  InnerObjShape = any,
+  ProjectionObjShape = InnerObjShape
+> extends ResultSet<ProjectionObjShape> {
   /**
    * Allows working on the select query object itself with all
    * the tables in the fields member field passed as parameters as
@@ -429,13 +437,13 @@ export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
    * Lists all the fields we are explicitly selecting for the query.
    * If no field is selected, all fields of all the involved tables will be returned.
    */
-  fields: IFieldsMemberFn<SelectQuery<ObjShape>>;
+  fields: IFieldsMemberFn<SelectQuery<InnerObjShape, ProjectionObjShape>>;
 
   /**
    * Allows ordering the query results on a number of fields, each one in asc or
    * desc order
    */
-  orderBy: IOrderByFn<SelectQuery<ObjShape>>;
+  orderBy: IOrderByFn<SelectQuery<InnerObjShape, ProjectionObjShape>>;
 
   /**
    * Allows adding two or more joined tables to the list of tables we select from.
@@ -452,14 +460,16 @@ export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
     p3?: JoinType | ColumnReferenceFn<T1 | T2> | SQLExpression,
     p4?: JoinType | ColumnReferenceFn<T2>,
     p5?: JoinType
-  ) => SelectQuery<ObjShape>;
+  ) => SelectQuery<InnerObjShape, ProjectionObjShape>;
 
   /**
    * Sets the root where condition for the statement.
    *
    * @param rootCond
    */
-  where: (rootCond: SQLExpression) => SelectQuery<ObjShape>;
+  where: (
+    rootCond: SQLExpression
+  ) => SelectQuery<InnerObjShape, ProjectionObjShape>;
 
   /**
    * If the database dialect supports it, you can limit the number of rows returned
@@ -467,7 +477,7 @@ export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
    *
    * Returns the query object itself to allow chaining of conditions
    */
-  maxRows: (maxRows: number) => SelectQuery<ObjShape>;
+  maxRows: (maxRows: number) => SelectQuery<InnerObjShape, ProjectionObjShape>;
 
   /**
    * If the parameter is true, makes the selct statement a select distinct one.
@@ -475,7 +485,9 @@ export interface SelectQuery<ObjShape = any> extends ResultSet<ObjShape> {
    * @param {number} boolean
    * @returns {SelectQuery<ObjShape>}
    */
-  selectDistinct: (isSelectDistinct: boolean) => SelectQuery<ObjShape>;
+  selectDistinct: (
+    isSelectDistinct: boolean
+  ) => SelectQuery<InnerObjShape, ProjectionObjShape>;
 }
 
 export const MAX_SINGLE_LINE_STATEMENT_LENGTH = 72;

@@ -21,8 +21,12 @@ import {
   concat,
   binaryOperator,
   Id,
-  tblCCFields
+  tblCCFields,
+  diffs
 } from '../src';
+import {functionCall} from '../lib';
+import {notEqual} from 'assert';
+import {SelectQuery} from '../lib/query/types';
 
 interface ITst {
   _id: string;
@@ -442,6 +446,35 @@ limit 10`;
     expect(sql).toBe(`select 'test_' || tst.tst_id as "testId"
 from tst
 where tst.tst_name = 'what' +=+ 'op'`);
+  });
+});
+
+describe('Working with subQueries', () => {
+  test('Querying a subtable', () => {
+    const sql = selectFrom(
+      selectFrom<ITst, {cid: string}>(tstTbl, (qry, tst) => {
+        qry
+          .fields(
+            alias(functionCall('concat', tst.cols._id, tst.cols.name), 'cid')
+          )
+          .where(diffs(tst.cols._id, value(23)));
+      }),
+      outerQry => {
+        outerQry.fields([
+          outerQry.cols.cid,
+          alias(functionCall('echo', outerQry.cols.cid), 'f1')
+        ]);
+      }
+    );
+    expect(sql.toSql()).toBe(`select
+  echo("SQ"."cid") as "f1",
+  "SQ"."cid"
+from
+  (
+    select concat(tst.tst_id, tst.tst_name) as "cid"
+    from tst
+    where tst.tst_id <> 23
+  ) as "SQ"`);
   });
 });
 

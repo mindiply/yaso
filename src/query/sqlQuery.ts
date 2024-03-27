@@ -733,6 +733,7 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     this.selectFields = flds.map(fld =>
       typeof fld === 'function' ? fld() : fld
     );
+    this.columsRefs = null;
     return this as unknown as SelectQuery<ObjShape>;
   };
 
@@ -832,51 +833,51 @@ ${indentString(subQrySql, 2)}
   return fromResultSet.toSql(qryContext);
 }
 
-export function selectFrom<T>(
+export function selectFrom<T, Projection = T>(
   from: ReferencableTable<T>,
   cb?: (qry: SelectQuery<T>, t1: ReferencedTable<T>) => void
-): SelectQuery<T>;
-export function selectFrom<T>(
+): SelectQuery<T, Projection>;
+export function selectFrom<T, Projection = T>(
   from: SelectQryTablePrm<T>,
   cb?: (qry: SelectQuery<T>, t1: ResultSet<T>) => void
-): SelectQuery<T>;
-export function selectFrom<T>(
+): SelectQuery<T, Projection>;
+export function selectFrom<T, Projection = T>(
   from: [ReferencableTable<T>],
   cb?: (qry: SelectQuery<T>, t1: ReferencedTable<T>) => void
-): SelectQuery<T>;
-export function selectFrom<T>(
+): SelectQuery<T, Projection>;
+export function selectFrom<T, Projection = T>(
   from: [SelectQryTablePrm<T>],
   cb?: (qry: SelectQuery<T>, t1: ResultSet<T>) => void
-): SelectQuery<T>;
-export function selectFrom<T1, T2>(
+): SelectQuery<T, Projection>;
+export function selectFrom<T1, T2, Projection = T1 & T2>(
   from: [ReferencableTable<T1>, ReferencableTable<T2>],
   cb?: (
     qry: SelectQuery<T1 & T2>,
     t1: ReferencedTable<T1>,
     t2: ReferencedTable<T2>
   ) => void
-): SelectQuery<T1 & T2>;
-export function selectFrom<T1, T2>(
+): SelectQuery<T1 & T2, Projection>;
+export function selectFrom<T1, T2, Projection = T1 & T2>(
   from: [ReferencableTable<T1>, SelectQryTablePrm<T2>],
   cb?: (
     qry: SelectQuery<T1 & T2>,
     t1: ReferencedTable<T1>,
     t2: ResultSet<T2>
   ) => void
-): SelectQuery<T1 & T2>;
-export function selectFrom<T1, T2>(
+): SelectQuery<T1 & T2, Projection>;
+export function selectFrom<T1, T2, Projection = T1 & T2>(
   from: [SelectQryTablePrm<T1>, ReferencableTable<T2>],
   cb?: (
     qry: SelectQuery<T1 & T2>,
     t1: ResultSet<T1>,
     t2: ReferencedTable<T2>
   ) => void
-): SelectQuery<T1 & T2>;
-export function selectFrom<T1, T2>(
+): SelectQuery<T1 & T2, Projection>;
+export function selectFrom<T1, T2, Projection = T1 & T2>(
   from: [SelectQryTablePrm<T1>, SelectQryTablePrm<T2>],
   cb?: (qry: SelectQuery<T1 & T2>, t1: ResultSet<T1>, t2: ResultSet<T2>) => void
-): SelectQuery<T1 & T2>;
-export function selectFrom<T1, T2, T3>(
+): SelectQuery<T1 & T2, Projection>;
+export function selectFrom<T1, T2, T3, Projection = T1 & T2 & T3>(
   from: [ReferencableTable<T1>, ReferencableTable<T2>, ReferencableTable<T3>],
   cb?: (
     qry: SelectQuery<T1 & T2 & T3>,
@@ -884,8 +885,8 @@ export function selectFrom<T1, T2, T3>(
     t2: ReferencedTable<T2>,
     t3: ReferencedTable<T3>
   ) => void
-): SelectQuery<T1 & T2 & T3>;
-export function selectFrom<T1, T2, T3>(
+): SelectQuery<T1 & T2 & T3, Projection>;
+export function selectFrom<T1, T2, T3, Projection = T1 & T2 & T3>(
   from: [ReferencableTable<T1>, ReferencableTable<T2>, SelectQryTablePrm<T3>],
   cb?: (
     qry: SelectQuery<T1 & T2 & T3>,
@@ -893,8 +894,8 @@ export function selectFrom<T1, T2, T3>(
     t2: ReferencedTable<T2>,
     t3: ResultSet<T3>
   ) => void
-): SelectQuery<T1 & T2 & T3>;
-export function selectFrom<T1, T2, T3>(
+): SelectQuery<T1 & T2 & T3, Projection>;
+export function selectFrom<T1, T2, T3, Projection = T1 & T2 & T3>(
   from: [ReferencableTable<T1>, SelectQryTablePrm<T2>, SelectQryTablePrm<T3>],
   cb?: (
     qry: SelectQuery<T1 & T2 & T3>,
@@ -902,8 +903,8 @@ export function selectFrom<T1, T2, T3>(
     t2: ResultSet<T2>,
     t3: ResultSet<T3>
   ) => void
-): SelectQuery<T1 & T2 & T3>;
-export function selectFrom<T1, T2, T3>(
+): SelectQuery<T1 & T2 & T3, Projection>;
+export function selectFrom<T1, T2, T3, Projection = T1 & T2 & T3>(
   from: [SelectQryTablePrm<T1>, SelectQryTablePrm<T2>, SelectQryTablePrm<T3>],
   cb?: (
     qry: SelectQuery<T1 & T2 & T3>,
@@ -911,7 +912,7 @@ export function selectFrom<T1, T2, T3>(
     t2: ResultSet<T2>,
     t3: ResultSet<T3>
   ) => void
-): SelectQuery<T1 & T2 & T3>;
+): SelectQuery<T1 & T2 & T3, Projection>;
 export function selectFrom(
   from: SelectQryTablePrm<any> | Array<SelectQryTablePrm<any>>,
   cb?: (qry: SelectQuery<any>, ...tables: any[]) => void
