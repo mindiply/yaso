@@ -460,10 +460,12 @@ describe('Working with subQueries', () => {
           .where(diffs(tst.cols._id, value(23)));
       }),
       outerQry => {
-        outerQry.fields([
-          outerQry.cols.cid,
-          alias(functionCall('echo', outerQry.cols.cid), 'f1')
-        ]);
+        outerQry
+          .fields([
+            outerQry.cols.cid,
+            alias(functionCall('echo', outerQry.cols.cid), 'f1')
+          ])
+          .where(equals(outerQry.cols.cid, value('testid')));
       }
     );
     expect(sql.toSql()).toBe(`select
@@ -474,7 +476,38 @@ from
     select concat(tst.tst_id, tst.tst_name) as "cid"
     from tst
     where tst.tst_id <> 23
-  ) as "SQ"`);
+  ) as "SQ"
+where "SQ"."cid" = 'testid'`);
+  });
+
+  test('Querying a subtable with binary operator in where', () => {
+    const sql = selectFrom(
+      selectFrom<ITst, {cid: string}>(tstTbl, (qry, tst) => {
+        qry
+          .fields(
+            alias(functionCall('concat', tst.cols._id, tst.cols.name), 'cid')
+          )
+          .where(diffs(tst.cols._id, value(23)));
+      }),
+      outerQry => {
+        outerQry
+          .fields([
+            outerQry.cols.cid,
+            alias(functionCall('echo', outerQry.cols.cid), 'f1')
+          ])
+          .where(binaryOperator(outerQry.cols.cid, '@?', value('testid')));
+      }
+    );
+    expect(sql.toSql()).toBe(`select
+  echo("SQ"."cid") as "f1",
+  "SQ"."cid"
+from
+  (
+    select concat(tst.tst_id, tst.tst_name) as "cid"
+    from tst
+    where tst.tst_id <> 23
+  ) as "SQ"
+where "SQ"."cid" @? 'testid'`);
   });
 });
 
