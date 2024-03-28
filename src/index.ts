@@ -53,3 +53,4 @@ export {usePg} from './db/pgSQL';
 export {tblCCFields} from './query/utils';
 export {ITbl, IId, Id, TableFieldUpdates} from './query/types';
 export {rawSql} from './query/BaseSqlExpressions';
+export {dbDialect} from './db';

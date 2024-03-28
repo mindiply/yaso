@@ -83,7 +83,7 @@ export class PgDialect implements IDBDialect {
 
   public namedParameter = (prmName: string): string => `$[${prmName}]`;
 
-  public now = () => rawSql('current_timestamp');
+  public now = () => rawSql('current_timestamp', true);
 
   toSelectSql = (selectStatement: ISelectStatement): ISelectStatement => {
     if (selectStatement.maxReturnRows && selectStatement.maxReturnRows > 0) {

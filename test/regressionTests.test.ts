@@ -20,7 +20,10 @@ import {
   notIn,
   functionCall,
   prm,
-  usePg
+  usePg,
+  nullValue,
+  max,
+  dbDialect
 } from '../src';
 
 usePg();
@@ -380,6 +383,186 @@ where
           from pth
           where
             pth.pth_when > $[sentAfter]
+            and pth.pth_pjb_id = prr.prr_pjb_id
+            and pth.pth_entry @?
+              '$.changes[*] ? (@.changes.progress >= 0 && @.__typename == "ChangeElementChange" &&  @.element.__typename == "Task")'
+        ) as "SQ"
+      where
+        "SQ"."value" @?
+          '$ ? (@.element.__typename == "Task" && @.changes.progress >= 0 && @.__typename == "ChangeElementChange")'
+    )
+  )
+  and (
+    prm.prm_wpu_id in (
+      select wpu.wpu_id as "_id"
+      from wpu
+      where
+        wpu.wpu_status = 'active'
+        and wpu.wpu_workspace_role = 'limited'
+    )
+  )
+order by
+  prm.prm_wpu_id,
+  prr.prr_end`);
+  });
+
+  test('Current_timestamp should not be within parentheses', () => {
+    const sql = selectFrom([prrTbl, prmTbl], (qry, prr, prmt) => {
+      qry
+        .fields([prr, prmt.cols.memberId])
+        .join(prr.cols._id, prmt.cols.recordId)
+        .where(
+          and([
+            equals(prr.cols.recordType, value('Task')),
+            lessThan(prr.cols.endDate, prm('endingBefore')),
+            not(
+              binaryOperator(
+                prr.cols.recordObject,
+                '@>',
+                value(JSON.stringify({progress: 100}))
+              )
+            ),
+            not(
+              exists(
+                tbl(trmTbl).selectQry(trm => ({
+                  fields: [value(1)],
+                  where: and([
+                    equals(trm.cols.workspaceUserId, prmt.cols.memberId),
+                    moreThan(trm.cols.when, prm('sentAfter'))
+                  ])
+                }))
+              )
+            ),
+            notIn(
+              prr.cols.recordId,
+              selectFrom(
+                tbl(pthTbl).selectQry(pth => ({
+                  fields: [
+                    alias(
+                      functionCall(
+                        'jsonb_array_elements',
+                        binaryOperator(pth.cols.entry, '->', value('changes'))
+                      ),
+                      'value'
+                    )
+                  ],
+                  where: and([
+                    moreThan(
+                      pth.cols.when,
+                      nullValue(
+                        tbl(trmTbl).selectQry(trm => ({
+                          fields: [max(trm.cols.when)],
+                          where: and([
+                            equals(
+                              trm.cols.workspaceUserId,
+                              prmt.cols.memberId
+                            ),
+                            moreThan(trm.cols.when, prm('sentAfter'))
+                          ])
+                        })),
+                        dbDialect().now()
+                      )
+                    ),
+                    equals(pth.cols.pjbId, prr.cols.projectId),
+                    binaryOperator(
+                      pth.cols.entry,
+                      '@?',
+                      value(
+                        '$.changes[*] ? (@.changes.progress >= 0 && @.__typename == "ChangeElementChange" &&  @.element.__typename == "Task")'
+                      )
+                    )
+                  ])
+                })),
+                (qry, innerQry) => {
+                  qry
+                    .fields(
+                      binaryOperator(
+                        binaryOperator(
+                          innerQry.cols.value,
+                          '->',
+                          value('element')
+                        ),
+                        '->>',
+                        value('_id')
+                      )
+                    )
+                    .where(
+                      binaryOperator(
+                        innerQry.cols.value,
+                        '@?',
+                        value(
+                          '$ ? (@.element.__typename == "Task" && @.changes.progress >= 0 && @.__typename == "ChangeElementChange")'
+                        )
+                      )
+                    );
+                }
+              )
+            ),
+            sqlIn(
+              prmt.cols.memberId,
+              tbl(wpuTbl).selectQry(wpu => ({
+                fields: [wpu.cols._id],
+                where: and([
+                  equals(wpu.cols.status, value('active')),
+                  equals(
+                    wpu.cols.workspaceRole,
+                    value('limited')
+                  )
+                ])
+              }))
+            )
+          ])
+        )
+        .orderBy([{field: prmt.cols.memberId}, {field: prr.cols.endDate}]);
+    }).toSql();
+    expect(sql).toBe(`select
+  prr.prr_id as "_id",
+  prr.prr_end as "endDate",
+  prm.prm_wpu_id as "memberId",
+  prr.prr_parent_prr_id as "parentRecordId",
+  prr.prr_pjb_id as "projectId",
+  prr.prr_record_id as "recordId",
+  prr.prr_record as "recordObject",
+  prr.prr_record_type as "recordType",
+  prr.prr_start as "startDate"
+from prr join prm on prr.prr_id = prm.prm_prr_id
+where
+  prr.prr_record_type = 'Task'
+  and prr.prr_end < $[endingBefore]
+  and (not (prr.prr_record @> '{"progress":100}'))
+  and (
+    not (
+      exists (
+        select 1 as "SQC1"
+        from trm
+        where
+          trm.trm_wpu_id = prm.prm_wpu_id
+          and trm.trm_when > $[sentAfter]
+      )
+    )
+  )
+  and (
+    prr.prr_record_id not in (
+      select "SQ"."value" -> 'element' ->> '_id' as "SQC1"
+      from
+        (
+          select jsonb_array_elements(pth.pth_entry -> 'changes') as "value"
+          from pth
+          where
+            (
+              pth.pth_when > (
+                coalesce(
+                  (
+                    select max(trm2.trm_when) as "SQC1"
+                    from trm as "trm2"
+                    where
+                      trm2.trm_wpu_id = prm.prm_wpu_id
+                      and trm2.trm_when > $[sentAfter]
+                  ),
+                  current_timestamp
+                )
+              )
+            )
             and pth.pth_pjb_id = prr.prr_pjb_id
             and pth.pth_entry @?
               '$.changes[*] ? (@.changes.progress >= 0 && @.__typename == "ChangeElementChange" &&  @.element.__typename == "Task")'

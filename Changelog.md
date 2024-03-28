@@ -20,6 +20,13 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.29] - Unreleased
+
+### Fixes
+- current_timestamp for postgres was being wrapped in parentheses
+- dbDialect is now exported from the main library index
+
+
 ## [0.0.28] - 2024-03-27
 
 ### Fixes
