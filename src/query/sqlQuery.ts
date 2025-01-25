@@ -212,7 +212,7 @@ function processSelectColumn(
       return column.alias;
     } else {
       if (aliases.has(column.alias)) {
-        for (let i = unexplicitAliasesMap.get(column.alias) || 1; true; i++) {
+        for (let i = unexplicitAliasesMap.get(column.alias) || 1; i < Number.MAX_SAFE_INTEGER; i++) {
           const ithAlias = i > 0 ? `${column.alias}${i + 1}` : column.alias;
           if (!aliases.has(ithAlias)) {
             aliases.add(ithAlias);
@@ -229,7 +229,7 @@ function processSelectColumn(
       }
     }
   } else {
-    for (let i = state.subQueryColumnCounter; true; i++) {
+    for (let i = state.subQueryColumnCounter; i < Number.MAX_SAFE_INTEGER; i++) {
       const ithAlias = `SQC${i + 1}`;
       if (!aliases.has(ithAlias)) {
         selectColumns.push(alias(column, ithAlias));
@@ -618,7 +618,7 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
         if (aliases.has(dereferncedColumn.alias)) {
           for (
             let i = unexplicitAliasesMap.get(dereferncedColumn.alias) || 1;
-            true;
+            i < Number.MAX_SAFE_INTEGER;
             i++
           ) {
             const ithAlias =
@@ -638,7 +638,7 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
         }
       }
     } else {
-      for (let i = state.subQueryColumnCounter; true; i++) {
+      for (let i = state.subQueryColumnCounter; i < Number.MAX_SAFE_INTEGER; i++) {
         const ithAlias = `SQC${i + 1}`;
         if (!aliases.has(ithAlias)) {
           columnAlias = ithAlias;
