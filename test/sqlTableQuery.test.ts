@@ -543,7 +543,7 @@ describe('Select, insert and update with encrypted and hashed fields', () => {
     const expectdSql = `select case when enc.name is not null then pgp_sym_decrypt(decode(enc.name, 'hex'), $[encryptionKey]) else null end as "name"
 from enc
 where enc.pw_hash = crypt($[pw], enc.pw_hash)
-order by enc.name`;
+order by "name"`;
     const sql = tstQry.selectQrySql({
       fields: ['name'],
       where: equals(

@@ -39,6 +39,7 @@ import {
 import {dbDialect} from '../db';
 import {
   ColumnReferenceFn,
+  IDBField,
   IQueryContext,
   ResultColumn,
   ResultSet,
@@ -67,6 +68,10 @@ export class AliasSqlExpression implements ISqlAliasExpression {
   constructor(expression: SQLExpression, alias: string) {
     this.expression = expression;
     this._alias = alias;
+  }
+
+  public get aliasingFor() {
+    return this.expression;
   }
 
   public get alias() {
@@ -909,6 +914,7 @@ export class AliasedReferenceSql implements SQLExpression {
 class SQLAliasedResultSetCol<ObjShape> implements ResultColumn<ObjShape> {
   public resultSet: ResultSet<ObjShape>;
   private aliasedExpression: SQLAliasedExpression;
+  private _dbFieldFn: () => IDBField<ObjShape> | null;
 
   public constructor(
     resultSet: ResultSet<ObjShape>,
@@ -916,10 +922,24 @@ class SQLAliasedResultSetCol<ObjShape> implements ResultColumn<ObjShape> {
   ) {
     this.resultSet = resultSet;
     this.aliasedExpression = aliasedExpression;
+    const aliasingFor = aliasedExpression.aliasingFor;
+    this._dbFieldFn = isResultsetColumn(aliasingFor)
+      ? (aliasingFor.dbField as () => IDBField<ObjShape>)
+      : () => null;
   }
 
   public get isExplicitAlias() {
     return this.aliasedExpression.isExplicitAlias;
+  }
+
+  public dbField() {
+    return isResultsetColumn(this.aliasingFor)
+      ? this.aliasingFor.dbField()
+      : null;
+  }
+
+  public get aliasingFor() {
+    return this.aliasedExpression.aliasingFor;
   }
 
   public toSelectSql = () => {
@@ -977,7 +997,6 @@ class SQLFunctionCallImpl implements SQLFunctionCall {
         totChars > MAX_SINGLE_LINE_STATEMENT_LENGTH ? ',\n' : ', '
       )
     )}`;
-    `${this.functionName}${list(this.parameters).toSql(qryContext)}`;
   };
 
   public isSimpleValue = () => true;

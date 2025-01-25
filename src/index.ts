@@ -48,7 +48,7 @@ export {
   deleteQuerySql,
   tbl
 } from './query/sqlTableQuery';
-export {selectFrom, orderBy} from './query/sqlQuery';
+export {selectFrom} from './query/sqlQuery';
 export {usePg} from './db/pgSQL';
 export {tblCCFields} from './query/utils';
 export {ITbl, IId, Id, TableFieldUpdates} from './query/types';

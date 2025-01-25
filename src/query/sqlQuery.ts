@@ -80,6 +80,10 @@ class SubTableSelectColumn implements SQLAliasedExpression {
     this.column = column;
   }
 
+  public get aliasingFor() {
+    return this.column.aliasingFor;
+  }
+
   public isSimpleValue = () => true;
 
   public toSql = () =>
@@ -117,6 +121,14 @@ class SubTableColumnAliasExpression implements ResultColumn<any> {
   ) {
     this.innerColumnReference = innerColumnReference;
     this.subSelectQuery = subSelectQuery;
+  }
+
+  public get aliasingFor() {
+    return this.innerColumnReference;
+  }
+
+  public dbField() {
+    return null;
   }
 
   public isSimpleValue = () => true;
@@ -158,6 +170,10 @@ class OverrideSelectAliasExpression implements SQLAliasedExpression {
   constructor(aliasedExpression: SQLAliasedExpression, aliasOverride: string) {
     this.aliasOverride = aliasOverride;
     this.expressionToOverride = aliasedExpression;
+  }
+
+  public get aliasingFor() {
+    return this.expressionToOverride.aliasingFor;
   }
 
   public isSimpleValue = () => true;
@@ -318,11 +334,26 @@ export function isSelectClause(obj: any): obj is SQLExpression {
   return obj && obj instanceof SelectClause ? true : false;
 }
 
-class SqlOrderByClause implements IOrderByClause {
+class SqlOrderByClause<ObjShape> implements IOrderByClause {
   public orderByFields: ISQLOrderByField[];
+  private selectClause: () => ColumnsRefs<
+    ObjShape,
+    | ColumnReferenceFn<ObjShape>
+    | TableFieldReferenceFn<ObjShape>
+    | CalculatedFieldReferenceFn<ObjShape>
+  >;
 
-  constructor(fields: ISQLOrderByField | ISQLOrderByField[]) {
+  constructor(
+    fields: ISQLOrderByField | ISQLOrderByField[],
+    getSelectFields: () => ColumnsRefs<
+      ObjShape,
+      | ColumnReferenceFn<ObjShape>
+      | TableFieldReferenceFn<ObjShape>
+      | CalculatedFieldReferenceFn<ObjShape>
+    >
+  ) {
     this.orderByFields = Array.isArray(fields) ? fields : [fields];
+    this.selectClause = getSelectFields;
   }
 
   isSimpleValue = () => true;
@@ -339,24 +370,47 @@ class SqlOrderByClause implements IOrderByClause {
           2
         )}`;
 
+  private isOrderByFieldInSelectedFields(field: ResultColumn<ObjShape>) {
+    const selectedFields = this.selectClause();
+    for (const aliasCol in selectedFields) {
+      const _selectedField = selectedFields[aliasCol];
+      const selectedField =
+        typeof _selectedField === 'function'
+          ? _selectedField()
+          : _selectedField;
+      if (field === selectedField || field === selectedField.aliasingFor) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   protected fieldToSql = (
     qryContext: IQueryContext,
-    {field, isDesc}: ISQLOrderByField
-  ): string =>
-    `${
-      typeof field === 'function'
-        ? field().toSql(qryContext)
-        : field.isSimpleValue()
-        ? field.toSql(qryContext)
-        : parenthesizeSql(field.toSql(qryContext))
-    }${isDesc ? ' desc' : ''}`;
-}
+    {field: _field, isDesc}: ISQLOrderByField
+  ): string => {
+    const field = typeof _field === 'function' ? _field() : _field;
 
-export const orderBy: IOrderByFn = (
-  fields: ISQLOrderByField | ISQLOrderByField[]
-): IOrderByClause => {
-  return new SqlOrderByClause(fields);
-};
+    let columnReference = '';
+    if (isResultsetColumn(field) && field.isExplicitAlias) {
+      columnReference = field.alias;
+    } else if (isResultsetColumn(field) && isTableFieldReference(field)) {
+      if (
+        this.isOrderByFieldInSelectedFields(field as ResultColumn<ObjShape>)
+      ) {
+        columnReference = `"${field.alias}"`;
+      } else {
+        columnReference = field.readValueToSql().toSql(qryContext);
+      }
+    } else {
+      columnReference = field.isSimpleValue()
+        ? field.toSql(qryContext)
+        : parenthesizeSql(field.toSql(qryContext));
+    }
+
+    return `${columnReference}${isDesc ? ' desc' : ''}`;
+  };
+}
 
 function populateJoinTableSet(
   joins: IJoin[],
@@ -516,6 +570,10 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
     );
     this._maxRows = maxRows;
     this.columsRefs = null;
+  }
+
+  public get aliasingFor() {
+    return this;
   }
 
   public get alias() {
@@ -745,7 +803,7 @@ class SelectQry<ObjShape> implements SelectQuery<ObjShape> {
   public orderBy: IOrderByFn<SelectQuery<ObjShape>> = (
     fields: ISQLOrderByField | ISQLOrderByField[]
   ): SelectQuery<ObjShape> => {
-    this.orderByExpression = orderBy(fields);
+    this.orderByExpression = new SqlOrderByClause(fields, () => this.cols);
     return this;
   };
 

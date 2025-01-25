@@ -43,7 +43,7 @@ export class QueryContext implements IQueryContext {
     const aliasProvided = alias ? alias : tbl.alias;
     if (alias || tbl.isExplicitAlias) {
       if (this.aliases.has(aliasProvided)) {
-        throw new Error('Explicit alias is already user');
+        throw new Error('Explicit alias is already used');
       }
       this.addTableAndAlias(tbl, tblName, aliasProvided);
       return aliasProvided;

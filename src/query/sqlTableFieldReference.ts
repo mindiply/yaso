@@ -37,6 +37,10 @@ class FieldSelectSqlExpression<T> implements IFieldSelectSqlExpression<T> {
     return this.field.isExplicitAlias;
   }
 
+  public get aliasingFor() {
+    return this.field;
+  }
+
   constructor(field: TableFieldReference<T> | CalculatedFieldReference<T>) {
     this.field = field;
   }
@@ -94,6 +98,14 @@ export class TblFieldReference<T> implements TableFieldReference<T> {
 
   public set alias(updatedAlias) {
     this._alias = updatedAlias;
+  }
+
+  public get aliasingFor() {
+    return this;
+  }
+
+  public dbField() {
+    return this.field;
   }
 
   public get isExplicitAlias() {
@@ -245,6 +257,14 @@ class CalculateFieldReference<ObjShape>
     this._alias = updatedAlias;
   }
 
+  public get aliasingFor() {
+    return this;
+  }
+
+  public dbField() {
+    return null;
+  }
+
   public get isExplicitAlias() {
     return Boolean(this._alias);
   }
@@ -358,6 +378,10 @@ export class BaseReferenceTable<ObjShape = any>
 
   public get isExplicitAlias() {
     return Boolean(this._alias);
+  }
+
+  public get aliasingFor() {
+    return this;
   }
 
   public get cols() {

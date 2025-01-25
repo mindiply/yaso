@@ -22,15 +22,14 @@ import {
   binaryOperator,
   Id,
   tblCCFields,
-  diffs
+  diffs,
+  functionCall
 } from '../src';
-import {functionCall} from '../lib';
-import {notEqual} from 'assert';
-import {SelectQuery} from '../lib/query/types';
 
 interface ITst {
   _id: string;
   name: string;
+  encrypted: string;
   cc: number;
   simpleCF: () => number;
   complexCF: () => number;
@@ -49,6 +48,11 @@ const tblDef: TableDefinition<ITst> = {
     {
       name: 'name',
       dbName: 'tst_name'
+    },
+    {
+      name: 'encrypted',
+      dbName: 'tst_encrypted',
+      isEncrypted: true
     },
     {
       name: 'cc',
@@ -116,6 +120,7 @@ describe('Basic select queries', () => {
     const expectedSql = `select
   tst.tst_id as "_id",
   tst.tst_cc as "cc",
+  case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted",
   tst.tst_name as "name"
 from tst`;
     expect(sql).toBe(expectedSql);
@@ -126,8 +131,37 @@ from tst`;
     const expectedSql = `select distinct
   tst.tst_id as "_id",
   tst.tst_cc as "cc",
+  case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted",
   tst.tst_name as "name"
 from tst`;
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Should order encrypted field by the encrypted function - in selected fields', () => {
+    const sql = selectFrom(tstTbl, itst => {
+      itst.orderBy([{field: itst.cols.encrypted}]);
+    }).toString();
+    const expectedSql = `select
+  tst.tst_id as "_id",
+  tst.tst_cc as "cc",
+  case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted",
+  tst.tst_name as "name"
+from tst
+order by "encrypted"`;
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Should order encrypted field by the encrypted function - not in selected fields', () => {
+    const sql = selectFrom(tstTbl, (qry, itst) => {
+      qry
+        .fields([itst.cols._id, itst.cols.name])
+        .orderBy([{field: itst.cols.encrypted}]);
+    }).toString();
+    const expectedSql = `select
+  tst.tst_id as "_id",
+  tst.tst_name as "name"
+from tst
+order by case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end`;
     expect(sql).toBe(expectedSql);
   });
 
@@ -171,6 +205,7 @@ where tst.tst_name = $[name]`);
     expect(sql).toBe(`select
   tst.tst_id as "_id",
   tst.tst_cc as "cc",
+  case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted",
   tst.tst_name as "name",
   (tst.tst_cc + tst.tst_cc) as "simpleCF"
 from tst
@@ -236,6 +271,8 @@ where
   tst2.tst_id as "_id2",
   tst.tst_cc as "cc",
   tst2.tst_cc as "cc2",
+  case when tst.tst_encrypted is not null then pgp_sym_decrypt(decode(tst.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted",
+  case when tst2.tst_encrypted is not null then pgp_sym_decrypt(decode(tst2.tst_encrypted, 'hex'), $[encryptionKey]) else null end as "encrypted2",
   tst.tst_name as "name",
   tst2.tst_name as "name2"
 from tst join tst as "tst2" on tst.tst_id = tst2.tst_id`;
@@ -267,11 +304,12 @@ from
       tst.tst_cc as "cc",
       tst.tst_name as "name"
     from tst
-    order by tst.tst_name desc
+    order by "name" desc
   ) as "SQ"
 limit 10`;
     const sql = selectFrom(
       selectFrom(tbl(tstTbl), (qry, iTst) => {
+        qry.fields([iTst.cols._id, iTst.cols.cc, iTst.cols.name]);
         qry.orderBy([{isDesc: true, field: iTst.cols.name}]);
       }),
       oQry => {
@@ -292,7 +330,7 @@ from tst, tst as "tst2"`;
     expect(sql).toBe(expectedSql);
   });
 
-  test('simmple where by id clause', () => {
+  test('simple where by id clause', () => {
     const expectedSql = `select
   tst.tst_id as "_id",
   tst.tst_cc as "cc"
@@ -315,7 +353,7 @@ where
     t1.tst_name = 'Paolo'
     or t1.tst_id > 20
   )
-order by t1.tst_id desc`;
+order by "_id" desc`;
     const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {
       qry
         .fields(t1.cols._id)
@@ -326,6 +364,30 @@ order by t1.tst_id desc`;
           ])
         )
         .orderBy([{field: t1.cols._id, isDesc: true}]);
+    }).toString();
+    expect(sql).toBe(expectedSql);
+  });
+
+  test('Multiple conditions and non-selected order field', () => {
+    const expectedSql = `select t1.tst_id as "_id"
+from tst as "t1"
+where
+  t1.tst_id = $[_id]
+  and (
+    t1.tst_name = 'Paolo'
+    or t1.tst_id > 20
+  )
+order by t1.tst_name desc`;
+    const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {
+      qry
+        .fields(t1.cols._id)
+        .where(
+          and([
+            equals(t1.cols._id, prm('_id')),
+            or([equals(t1.cols.name, 'Paolo'), moreThan(t1.cols._id, 20)])
+          ])
+        )
+        .orderBy([{field: t1.cols.name, isDesc: true}]);
     }).toString();
     expect(sql).toBe(expectedSql);
   });
@@ -348,7 +410,7 @@ where
     or t1.tst_id > 20
   )
 order by
-  t1.tst_id,
+  "_id",
   "sameNameId" desc`;
     const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {
       qry
@@ -400,7 +462,7 @@ where
     or t1.tst_id > 20
   )
 order by
-  t1.tst_id,
+  "_id",
   "sameNameId" desc
 limit 10`;
     const sql = selectFrom(tbl(tstTbl, 't1'), (qry, t1) => {

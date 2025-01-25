@@ -149,7 +149,7 @@ export interface IJoin<T1 = any, T2 = any, T3 = any, T4 = any>
   onTo?: ColumnReferenceFn<T3 | T2 | T4>;
 }
 
-export interface IOrderByFn<RT = IOrderByClause> {
+export interface IOrderByFn<RT extends SelectQuery<any>> {
   <T>(fields: ISQLOrderByField<T>): RT;
 
   <T>(fields: [ISQLOrderByField<T>]): RT;

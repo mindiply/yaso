@@ -402,8 +402,8 @@ where
     )
   )
 order by
-  prm.prm_wpu_id,
-  prr.prr_end`);
+  "memberId",
+  "endDate"`);
   });
 
   test('Current_timestamp should not be within parentheses', () => {
@@ -582,7 +582,7 @@ where
     )
   )
 order by
-  prm.prm_wpu_id,
-  prr.prr_end`);
+  "memberId",
+  "endDate"`);
   });
 });

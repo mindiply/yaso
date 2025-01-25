@@ -52,6 +52,12 @@ export interface Aliased {
    * an alias was not specified
    */
   alias: string;
+
+  /**
+   * Returns the expression we are aliasing, for potentially inspecting backwards
+   * what we represent.
+   */
+  readonly aliasingFor: SQLExpression;
 }
 
 /**
@@ -117,6 +123,13 @@ export interface ResultColumn<ObjShape> extends SQLAliasedExpression {
    * @param qryContext
    */
   toReferenceSql: () => SQLExpression;
+
+  /**
+   * For columns that represent actual database columns, it points to the
+   * underlying db field definition, to allow inspecting database field properties
+   * like isEncrypted, isHash, isPwHash, isCC, isInsertTimestamp, isUpdateTimestamp.
+   */
+  readonly dbField: () => IDBField<ObjShape> | null;
 }
 
 /**

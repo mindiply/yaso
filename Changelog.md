@@ -20,9 +20,14 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
-## [0.0.29] - Unreleased
+
+## [0.0.29] - [2025-01-25]
+
+### Changes
+- Order by now uses the alias in the select statement, if the field is preset in both the select and order by clauses
 
 ### Fixes
+- when ordering by an encrypted field, the field was not being decrypted
 - current_timestamp for postgres was being wrapped in parentheses
 - dbDialect is now exported from the main library index
 
