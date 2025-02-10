@@ -165,6 +165,8 @@ class SQLValue implements SQLExpression {
     }
     if (value === null) {
       return 'NULL';
+    } else if (typeof value === 'string') {
+      return `'${value.replaceAll("'", "''")}'`
     }
     return `'${String(value)}'`;
   };

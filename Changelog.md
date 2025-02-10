@@ -21,7 +21,14 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
-## [0.0.29] - [2025-01-25]
+## [0.0.30] - 2025-02-10
+
+### Fixes
+- Strings added directly to insert and update fields statements, even wrapped in value, do not
+escape single quotes
+
+
+## [0.0.29] - 2025-01-25
 
 ### Changes
 - Order by now uses the alias in the select statement, if the field is preset in both the select and order by clauses

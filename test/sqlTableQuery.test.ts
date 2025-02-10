@@ -672,4 +672,19 @@ describe('Regressions', () => {
       })
     ).toThrow(new TypeError(`Field nonPresentName not mapped`));
   });
+  
+  test('Error in insertSQl when a string field has a quote in it', () => {
+    const name = "I'm not there"
+    expect(qryTbl.insertQrySql({fields: {
+      name
+      }})).toBe(`insert into tst (
+  tst_change_count,
+  tst_name,
+  tst_created_at
+) values (
+  0,
+  'I''m not there',
+  current_timestamp
+)`);
+  });
 });
