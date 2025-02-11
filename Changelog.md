@@ -21,6 +21,11 @@ changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
 
+## [0.0.31] - 2025-10-11
+
+### Fixes
+- Typescript typings were not in the expected location
+
 ## [0.0.30] - 2025-02-10
 
 ### Fixes
