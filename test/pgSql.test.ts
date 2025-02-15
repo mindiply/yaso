@@ -23,7 +23,9 @@ import {
   Id,
   tblCCFields,
   diffs,
-  functionCall
+  functionCall,
+  caseWhen,
+  not
 } from '../src';
 
 interface ITst {
@@ -570,6 +572,76 @@ from
     where tst.tst_id <> 23
   ) as "SQ"
 where "SQ"."cid" @? 'testid'`);
+  });
+
+  test('case statement with then tbl subquery', () => {
+    const sql = tbl(tstTbl).selectQry(tst1 => ({
+      fields: [
+        alias(
+          caseWhen(
+            [
+              {
+                condition: equals(tst1.cols.cc, 10),
+                then: tbl(tstTbl).selectQry(tst2 => ({
+                  fields: [min(nullValue(tst2.cols.name, ''))],
+                  where: not(equals(tst2.cols._id, tst1.cols._id))
+                }))
+              }
+            ],
+            value('')
+          ),
+          'F1'
+        )
+      ]
+    }));
+    const expectedSql = `select
+  (
+    case
+      when tst2.tst_cc = 10 then (
+        select min(coalesce(tst.tst_name, '')) as "SQC1"
+        from tst
+        where not (tst.tst_id = tst2.tst_id)
+      )
+      else ''
+    end
+  ) as "F1"
+from tst as "tst2"`;
+    expect(sql.toSql()).toBe(expectedSql);
+  });
+
+  test('case statement with then tbl selectFrom qry', () => {
+    const sql = tbl(tstTbl).selectQry(tst1 => ({
+      fields: [
+        alias(
+          caseWhen(
+            [
+              {
+                condition: equals(tst1.cols.cc, 10),
+                then: selectFrom(tstTbl, (qry, tst2) => {
+                  qry.fields([min(nullValue(tst2.cols.name, ''))]);
+                  qry.where(not(equals(tst2.cols._id, tst1.cols._id)));
+                })
+              }
+            ],
+            value('')
+          ),
+          'F1'
+        )
+      ]
+    }));
+    const expectedSql = `select
+  (
+    case
+      when tst2.tst_cc = 10 then (
+        select min(coalesce(tst.tst_name, '')) as "SQC1"
+        from tst
+        where not (tst.tst_id = tst2.tst_id)
+      )
+      else ''
+    end
+  ) as "F1"
+from tst as "tst2"`;
+    expect(sql.toSql()).toBe(expectedSql);
   });
 });
 

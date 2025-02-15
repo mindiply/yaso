@@ -166,7 +166,7 @@ class SQLValue implements SQLExpression {
     if (value === null) {
       return 'NULL';
     } else if (typeof value === 'string') {
-      return `'${value.replaceAll("'", "''")}'`
+      return `'${value.replaceAll("'", "''")}'`;
     }
     return `'${String(value)}'`;
   };
@@ -185,8 +185,8 @@ export const transformFieldUpdatesToSql = <T>(
     sqlChanges[fieldName as keyof T] = isSqlExpression(fieldValue)
       ? fieldValue
       : fieldValue === undefined
-      ? undefined
-      : new SQLValue(fieldValue as DataValue);
+        ? undefined
+        : new SQLValue(fieldValue as DataValue);
   });
   return sqlChanges;
 };
@@ -774,11 +774,19 @@ class CaseExpression implements ISqlCaseExpression {
   toSql = (qryContext: IQueryContext = new QueryContext()) => {
     if (this.whenBranches.length < 1) return '';
     const lines: string[] = ['case'];
-    this.whenBranches.forEach(({condition, then}) => {
+    for (const {condition, then} of this.whenBranches) {
+      const isSimple = then.isSimpleValue();
+      const thenSql = isSimple
+        ? then.toSql(qryContext)
+        : parenthesizeSql(then.toSql(qryContext));
       lines.push(
-        `when ${condition.toSql(qryContext)} then ${then.toSql(qryContext)}`
+        `when ${
+          condition.isSimpleValue()
+            ? condition.toSql(qryContext)
+            : parenthesizeSql(condition.toSql(qryContext))
+        } then ${thenSql}`
       );
-    });
+    }
     if (this.elseVal) {
       lines.push(`else ${this.elseVal.toSql(qryContext)}`);
     }

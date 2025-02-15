@@ -20,6 +20,11 @@ easy to adapt for other dialects
 changes returns both the sql and an array or dictionary of values
 to be passed onto the preferred db connection library
 
+## [0.0.32] - 2025-10-15
+
+## Fixes
+- Case statements that had select statements as subqueries did not wrap the select in
+parentheses.
 
 ## [0.0.31] - 2025-10-11
 
